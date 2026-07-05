@@ -1,5 +1,5 @@
-# 🦀 Decapod
-
+<!-- # 🦀 Decapod
+-->
 <p align="center">
     <picture>
         <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ThePeeps191/decapod/main/docs/assets/decapod-logo-text-dark.svg">
