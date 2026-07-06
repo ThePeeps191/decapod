@@ -7,10 +7,14 @@
     </picture>
 </p>
 
-**Decapod** is an autonomous and self-proactive AI entity built with swarm intelligence and advanced agentic capabilities. Instead of functioning as a personal AI assistant for a human, it instead works independently for and on behalf of itself.
+**Decapod** is an autonomous and self-proactive AI entity built with swarm intelligence and advanced agentic capabilities. Instead of functioning as a personal AI assistant for a human, it works independently for and on behalf of itself and executes tasks based off of its own planning, agenda, and best interest.
+
+## Features
 
 ## Quick Start & Setup
 
+## Architecture
+
 ## License
 
-Apache 2.0
+Apache 2.0 - Danny Wang
