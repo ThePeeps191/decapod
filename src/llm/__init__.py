@@ -7,7 +7,7 @@ class Client:
         self.API_KEY = API_KEY
         self.BASE_URL = BASE_URL
         self.FLASH_MODEL = FLASH_MODEL
-        self.PRO_MODEl = PRO_MODEL
+        self.PRO_MODEL = PRO_MODEL
 
         self.client = OpenAI(
             api_key = self.API_KEY,
