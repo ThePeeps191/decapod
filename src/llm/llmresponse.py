@@ -1,4 +1,4 @@
-class Message:
+class LLMResponse:
     def __init__(self, thinking = None, answer = None):
         self.thinking = thinking
         self.answer = answer

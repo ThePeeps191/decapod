@@ -1,23 +1,31 @@
 from openai import OpenAI
 
 import config
-from message import Message
+from llmresponse import LLMResponse
 
 class Client:
-    def __init__(self, API_KEY = config.API_KEY, BASE_URL = config.BASE_URL, FLASH_MODEL = config.FLASH_MODEL, PRO_MODEL = config.PRO_MODEL):
+    def __init__(self, API_KEY = config.API_KEY,
+                 BASE_URL = config.BASE_URL,
+                 FLASH_MODEL = config.FLASH_MODEL,
+                 PRO_MODEL = config.PRO_MODEL,
+                 SYS_PROMPT = None,
+                 MAX_MODEL = config.MAX_MODEL,
+                 MYTHOS_MODEL = config.MYTHOS_MODEL,
+                 VISION_MODEL = config.VISION_MODEL):
         self.API_KEY = API_KEY
         self.BASE_URL = BASE_URL
         self.FLASH_MODEL = FLASH_MODEL
         self.PRO_MODEL = PRO_MODEL
 
         self.latest_msg = None
+        self.chat_history = []
 
         self.client = OpenAI(
             api_key = self.API_KEY,
             base_url = self.BASE_URL
         )
 
-    def message(self, content: str, model = "flash", output = True):
+    def message(self, content: str, model = "flash", output = True) -> LLMResponse:
         stream = self.client.chat.completions.create(
             model = self.FLASH_MODEL if model == "flash" else self.PRO_MODEL,
             messages = [
@@ -63,7 +71,7 @@ class Client:
 
         if output: print()
 
-        self.latest_msg = Message("".join(thinking_parts), "".join(answer_parts))
+        self.latest_msg = LLMResponse("".join(thinking_parts), "".join(answer_parts))
         return self.latest_msg
 
 

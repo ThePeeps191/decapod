@@ -1,12 +1,12 @@
 from openai import OpenAI
 
 import config
-from message import Message
+from llmresponse import LLMResponse
 from client import Client
 
 __all__ = [
     "config",
-    "Message",
+    "LLMResponse",
     "Client"
 ]
 
