@@ -14,7 +14,7 @@
 - **Multi-agent orchestration:** An master agent coordinates a caucus of specialist agents that propose, debate, critique, and rank actions before the supervisor commits to a decision. The inclusion of a committee-of-experts architecture allows for higher levels of reasoning and intelligence while lowering hallucinations and bad decisions.
 - **Durable and persistent memory:** Decapod remembers all of its internal decisions/reasoning, goals, history, and objectives to ensure it works efficiently and effectively.
 - **Tool and agentic integration:** Decapod is provided with numerous tools through hard-coded APIs and MCP servers which allow it to execute tasks ranging from searching the internet to deploying code to creating and sending emails.
-- **Terminal monitor and kill switch:** While, at its core, Decapod operates without any humans, a TUI exists for monitoring a live log of its actions, memory, goals, internal caucus, and decisions, and also gives users some control over Decapod such as a kill switch.
+- **Terminal monitor and kill switch:** Although, at its core, Decapod operates without any humans, a TUI exists for monitoring a live log of its actions, memory, goals, internal caucus, and decisions, and also gives users some control over Decapod such as a kill switch.
 
 ## Quick Start & Setup
 

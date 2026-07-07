@@ -1,6 +1,7 @@
 from openai import OpenAI
 
 import config
+from message import Message
 
 class Client:
     def __init__(self, API_KEY = config.API_KEY, BASE_URL = config.BASE_URL, FLASH_MODEL = config.FLASH_MODEL, PRO_MODEL = config.PRO_MODEL):
@@ -60,12 +61,12 @@ class Client:
 
         if output: print()
 
-        return ["".join(thinking_parts), "".join(answer_parts)]
+        return Message("".join(thinking_parts), "".join(answer_parts))
 
 if __name__ == "__main__":
     client = Client()
     msg = client.message("Hello, please describe in one concise but thorough sentence who you are and what you can do. Think thoroughly before you respond.")
     print("---")
-    print(msg[0])
+    print(msg.thinking)
     print("---")
-    print(msg[1])
+    print(msg.answer)
