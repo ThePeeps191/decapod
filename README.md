@@ -9,6 +9,8 @@
 
 **Decapod** is an autonomous and self-proactive AI entity built with supervised multi-agent deliberation and advanced agentic capabilities. Instead of functioning as a personal AI assistant for a human, it works independently for and on behalf of itself and executes tasks based off of its own planning, agenda, and best interests. Its self-directed design allows it to run without needing any humans in-the-loop, though a TUI exists for monitoring and starting/stopping Decapod instances.
 
+## Motivation
+
 ## Features
 
 - **Multi-agent orchestration:** An master agent coordinates a caucus of specialist agents that propose, debate, critique, and rank actions before the supervisor commits to a decision. The inclusion of a committee-of-experts architecture allows for higher levels of reasoning and intelligence while lowering hallucinations and bad decisions.
@@ -37,7 +39,10 @@ Alternatively, you may want to let an AI coding agent such as Claude Code, Codex
 Please view and follow the instructions at https://raw.githubusercontent.com/ThePeeps191/decapod/refs/heads/main/install.md to install Decapod.
 ```
 
-## Architecture
+## Tech Stack
+Decapod was written entirely in Python with the following dependencies:
+
+## Architecture (How It Works)
 
 Decapod is built around the internal caucus, which is a committee-of-experts that are split up into various specialists that do everything from reflecting on past actions and what to improve on to designing goals for itself and planning how to execute them. Managers coordinate and summarize discussions/debates from the specialists, and an executive master agent decides based off of the managers' reports what Decapod should do next, while also organizing internal planning.
 
