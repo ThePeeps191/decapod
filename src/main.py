@@ -1,4 +1,10 @@
+"""
+main.py is the main cli tool that users call. When compiled
+from Python to a .exe, it will be renamed to decapod.exe.
+"""
+
 # Imports
+import sys
 import tui
 
 app = tui.TUI()

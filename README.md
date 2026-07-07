@@ -11,6 +11,8 @@
 
 ## Motivation
 
+Current AI agents often revolve around the concept of personal AI assistants, where humans direct agents (primarily, as of July 2026, OpenClaw and Hermes Agent) to execute tasks and work for them. This may range from simple, guided tasks such as researching the internet to understand a topic to performing complex and continuous workflows such as autonomously building or reviewing software. Decapod is meant to be an AI agent that truly acts on its own (it works for itself, not a human), not one meant to help humans.
+
 ## Features
 
 - **Multi-agent orchestration:** An master agent coordinates a caucus of specialist agents that propose, debate, critique, and rank actions before the supervisor commits to a decision. The inclusion of a committee-of-experts architecture allows for higher levels of reasoning and intelligence while lowering hallucinations and bad decisions.
