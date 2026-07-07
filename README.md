@@ -18,6 +18,25 @@
 
 ## Quick Start & Setup
 
+First, clone this repository:
+
+```bash
+git clone https://github.com/ThePeeps191/decapod.git
+```
+
+Next, run the install wizard script located at `install.py` with:
+
+```bash
+cd decapod
+python install.py
+```
+
+Alternatively, you may want to let an AI coding agent such as Claude Code, Codex, or OpenCode install Decapod for you. Simply paste the following instructions into your agent:
+
+```text
+Please view and follow the instructions at https://raw.githubusercontent.com/ThePeeps191/decapod/refs/heads/main/install.md to install Decapod.
+```
+
 ## Architecture
 
 Decapod is built around the internal caucus, which is a committee-of-experts that are split up into various specialists that do everything from reflecting on past actions and what to improve on to designing goals for itself and planning how to execute them. Managers coordinate and summarize discussions/debates from the specialists, and an executive master agent decides based off of the managers' reports what Decapod should do next, while also organizing internal planning.
