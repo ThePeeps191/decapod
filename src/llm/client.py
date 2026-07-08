@@ -33,11 +33,16 @@ class Client:
             base_url = self.BASE_URL
         )
 
-    def message(self, content: str, model = "flash", output = True) -> LLMResponse:
+    def message(self, content: str, model = "FLASH", output = True) -> LLMResponse:
         self.chat_history.append({"role": "user", "content": content})
 
+        try:
+            cur_model = getattr(self, f"{model}_MODEL")
+        except KeyError:
+            cur_model = self.FLASH_MODEL
+
         stream = self.client.chat.completions.create(
-            model = self.FLASH_MODEL if model == "flash" else self.PRO_MODEL,
+            model = cur_model,
             messages = self.chat_history,
             stream = True
         )
