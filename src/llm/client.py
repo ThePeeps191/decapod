@@ -112,3 +112,9 @@ if __name__ == "__main__":
     print(msg2.thinking)
     print("---")
     print(msg2.answer)
+
+    client.reset_history()
+    msg3 = client.message("What was said in the last message?")
+
+    client.reset_history()
+    msg3 = client.message("What model are you?", model = "MAX") # expect GLM-5.2

@@ -12,15 +12,4 @@ __all__ = [
 
 
 if __name__ == "__main__":
-    client = Client()
-    msg1 = client.message("What is 5 + 5?")
-    print("---")
-    print(msg1.thinking)
-    print("---")
-    print(msg1.answer)
-
-    msg2 = client.message("What is 3 times the previous answer?")
-    print("---")
-    print(msg2.thinking)
-    print("---")
-    print(msg2.answer)
+    pass

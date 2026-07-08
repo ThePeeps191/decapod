@@ -9,9 +9,9 @@ BASE_URL = "https://ai.hackclub.com/proxy/v1"
 API_KEY = os.getenv("HACKCLUB_AI_API_KEY")
 FLASH_MODEL = "deepseek/deepseek-v4-flash"
 PRO_MODEL = "deepseek/deepseek-v4-pro"
-MAX_MODEL = ""
-MYTHOS_MODEL = ""
-MULTIMODAL_MODEL = ""
+MAX_MODEL = "z-ai/glm-5.2"
+MYTHOS_MODEL = "anthropic/claude-fable-5"
+MULTIMODAL_MODEL = "xiaomi/mimo-v2.5"
 
 # Use DeepSeek API instead
 # BASE_URL = "https://api.deepseek.com"
