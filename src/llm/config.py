@@ -11,7 +11,7 @@ FLASH_MODEL = "deepseek/deepseek-v4-flash"
 PRO_MODEL = "deepseek/deepseek-v4-pro"
 MAX_MODEL = ""
 MYTHOS_MODEL = ""
-VISION_MODEL = ""
+MULTIMODAL_MODEL = ""
 
 # Use DeepSeek API instead
 # BASE_URL = "https://api.deepseek.com"

@@ -1,8 +1,8 @@
 from openai import OpenAI
 
-import config
-from llmresponse import LLMResponse
-from client import Client
+from . import config
+from .llmresponse import LLMResponse
+from .client import Client
 
 __all__ = [
     "config",
@@ -13,8 +13,14 @@ __all__ = [
 
 if __name__ == "__main__":
     client = Client()
-    msg = client.message("Hello, please describe in one concise but thorough sentence who you are and what you can do. Think thoroughly before you respond.")
+    msg1 = client.message("What is 5 + 5?")
     print("---")
-    print(msg.thinking)
+    print(msg1.thinking)
     print("---")
-    print(msg.answer)
+    print(msg1.answer)
+
+    msg2 = client.message("What is 3 times the previous answer?")
+    print("---")
+    print(msg2.thinking)
+    print("---")
+    print(msg2.answer)
