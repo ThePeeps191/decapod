@@ -11,7 +11,8 @@ class Client:
                  SYSTEM_PROMPT = None,
                  MAX_MODEL = config.MAX_MODEL,
                  MYTHOS_MODEL = config.MYTHOS_MODEL,
-                 MULTIMODAL_MODEL = config.MULTIMODAL_MODEL):
+                 MULTIMODAL_MODEL = config.MULTIMODAL_MODEL,
+                 FREE_MODEL = config.FREE_MODEL):
         self.API_KEY = API_KEY
         self.BASE_URL = BASE_URL
         self.FLASH_MODEL = FLASH_MODEL
@@ -19,6 +20,7 @@ class Client:
         self.MAX_MODEL = MAX_MODEL
         self.MYTHOS_MODEL = MYTHOS_MODEL
         self.MULTIMODAL_MODEL = MULTIMODAL_MODEL
+        self.FREE_MODEL = FREE_MODEL
 
         self.SYSTEM_PROMPT = SYSTEM_PROMPT
 
@@ -36,9 +38,10 @@ class Client:
     def message(self, content: str, model = "FLASH", output = True) -> LLMResponse:
         self.chat_history.append({"role": "user", "content": content})
 
+        model = model.upper()
         try:
             cur_model = getattr(self, f"{model}_MODEL")
-        except KeyError:
+        except AttributeError:
             cur_model = self.FLASH_MODEL
 
         stream = self.client.chat.completions.create(
@@ -90,14 +93,15 @@ class Client:
     
     def reset_history(self):
         self.chat_history = [{"role": "system", "content": self.SYSTEM_PROMPT}] if self.SYSTEM_PROMPT else []
-        self.latest_msg = None
+        self.latest_response = None
 
-    def add_context(self, content: str):
+    def insert_system(self, content: str):
         self.chat_history.append({"role": "system", "content": content})
     
     def undo_sent_msg(self):
-        pass
-
+        if len(self.chat_history) == 0:
+            return -1
+        
 
 if __name__ == "__main__":
     client = Client()

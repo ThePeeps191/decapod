@@ -12,6 +12,7 @@ PRO_MODEL = "deepseek/deepseek-v4-pro"
 MAX_MODEL = "z-ai/glm-5.2"
 MYTHOS_MODEL = "anthropic/claude-fable-5"
 MULTIMODAL_MODEL = "xiaomi/mimo-v2.5"
+FREE_MODEL = "tencent/hy3:free"
 
 # Use DeepSeek API instead
 # BASE_URL = "https://api.deepseek.com"
