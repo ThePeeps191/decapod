@@ -1,7 +1,7 @@
 from openai import OpenAI
 
-from . import config
-from .llmresponse import LLMResponse
+import config
+from llmresponse import LLMResponse
 
 class Client:
     def __init__(self, API_KEY = config.API_KEY,

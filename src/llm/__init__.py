@@ -1,8 +1,8 @@
 from openai import OpenAI
 
-from . import config
-from .llmresponse import LLMResponse
-from .client import Client
+import config
+from llmresponse import LLMResponse
+from client import Client
 
 __all__ = [
     "config",
