@@ -99,9 +99,13 @@ class Client:
         self.chat_history.append({"role": "system", "content": content})
     
     def undo_sent_msg(self):
-        if len(self.chat_history) == 0:
+        if (len(self.chat_history) == 0) or (len(self.chat_history) == 1 and self.chat_history[0]["role"] == "system"):
             return -1
         
+        try:
+            assert self.chat_history[-1]["role"] == "assistant" and self.chat_history[-2]["role"] == "user"
+        except:
+            pass
 
 if __name__ == "__main__":
     client = Client()
