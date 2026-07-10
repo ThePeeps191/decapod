@@ -7,7 +7,12 @@ from Python to a .exe, it will be renamed to decapod.exe.
 import sys
 import tui
 
+def main():
+    app = tui.TUI()
+
+    app.run()
+
 app = tui.TUI()
 
 if __name__ == "__main__":
-    app.run()
+    main()
