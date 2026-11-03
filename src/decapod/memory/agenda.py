@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Any
 
 import networkx as nx
@@ -10,7 +11,7 @@ from pydantic import BaseModel, Field
 from decapod.domain import Goal, GoalStatus, Task, TaskStatus
 from decapod.storage import Database, EventLog, loads
 from decapod.util.text import json_dumps, one_line
-from decapod.util.timeutil import from_iso, now, to_iso
+from decapod.util.timeutil import format_duration, from_iso, now, to_iso
 
 
 class TaskDraft(BaseModel):
@@ -36,9 +37,25 @@ def _goal(row: Any) -> Goal:
         rationale=row["rationale"],
         charter_refs=loads(row["charter_refs"], []),
         progress_note=row["progress_note"],
+        every_seconds=row["every_seconds"],
+        due_at=from_iso(row["due_at"]) if row["due_at"] else None,
+        next_due=from_iso(row["next_due"]) if row["next_due"] else None,
+        completions=row["completions"],
         created_at=from_iso(row["created_at"]),
         updated_at=from_iso(row["updated_at"]),
     )
+
+
+#: Recurring goals repeat at most hourly and at least once a year.
+MIN_RECURRENCE = timedelta(hours=1)
+MAX_RECURRENCE = timedelta(days=366)
+
+
+def check_recurrence(every: timedelta) -> None:
+    if every < MIN_RECURRENCE:
+        raise AgendaError("a recurring goal may repeat at most once an hour")
+    if every > MAX_RECURRENCE:
+        raise AgendaError("a recurring goal must repeat at least once a year")
 
 
 def _task(row: Any) -> Task:
@@ -71,6 +88,26 @@ _GOAL_FIELDS = {
 }
 
 
+def schedule_text(goal: Goal) -> str:
+    """Human-readable recurrence/deadline info for prompts and the TUI."""
+    parts = []
+    current = now()
+    if goal.every_seconds:
+        parts.append(
+            f"recurs every {format_duration(goal.every_seconds)}"
+            + (f", done {goal.completions}x" if goal.completions else "")
+        )
+        if goal.next_due:
+            parts.append(f"next occurrence in {format_duration(goal.next_due - current)}")
+    if goal.due_at:
+        delta = goal.due_at - current
+        if delta.total_seconds() < 0:
+            parts.append(f"OVERDUE by {format_duration(-delta)}")
+        else:
+            parts.append(f"due in {format_duration(delta)} ({goal.due_at:%Y-%m-%d %H:%M} UTC)")
+    return "; ".join(parts)
+
+
 class AgendaStore:
     def __init__(self, db: Database, events: EventLog | None = None) -> None:
         self.db = db
@@ -93,9 +130,13 @@ class AgendaStore:
         parent_id: int | None = None,
         rationale: str = "",
         charter_refs: list[str] | None = None,
+        every: timedelta | None = None,
+        due_at: datetime | None = None,
         cycle_id: str | None = None,
     ) -> Goal:
         title = title.strip()
+        if every is not None:
+            check_recurrence(every)
         if not title:
             raise AgendaError("goal title must not be empty")
         if parent_id is not None and self.get_goal(parent_id) is None:
@@ -103,7 +144,8 @@ class AgendaStore:
         ts = to_iso(now())
         goal_id = self.db.insert(
             "INSERT INTO goals(title, description, success_criteria, priority, status, parent_id,"
-            " rationale, charter_refs, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            " rationale, charter_refs, every_seconds, due_at, created_at, updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 title,
                 description,
@@ -113,6 +155,8 @@ class AgendaStore:
                 parent_id,
                 rationale,
                 json_dumps(charter_refs or []),
+                every.total_seconds() if every else None,
+                to_iso(due_at) if due_at else None,
                 ts,
                 ts,
             ),
@@ -134,8 +178,17 @@ class AgendaStore:
             raise AgendaError(f"goal G{goal_id} does not exist")
         return goal
 
-    def update_goal(self, goal_id: int, *, cycle_id: str | None = None, **fields: Any) -> Goal:
-        self.require_goal(goal_id)
+    def update_goal(
+        self,
+        goal_id: int,
+        *,
+        cycle_id: str | None = None,
+        every: timedelta | None = None,
+        due_at: datetime | None = None,
+        clear_schedule: bool = False,
+        **fields: Any,
+    ) -> Goal:
+        current = self.require_goal(goal_id)
         unknown = set(fields) - _GOAL_FIELDS
         if unknown:
             raise AgendaError(f"unknown goal fields: {', '.join(sorted(unknown))}")
@@ -150,6 +203,33 @@ class AgendaStore:
             elif key == "priority":
                 value = max(0.0, min(1.0, float(value)))
             updates[key] = value
+        if clear_schedule:
+            updates.update(every_seconds=None, due_at=None, next_due=None)
+        if every is not None:
+            check_recurrence(every)
+            updates["every_seconds"] = every.total_seconds()
+        if due_at is not None:
+            updates["due_at"] = to_iso(due_at)
+        becoming_done = (
+            updates.get("status") == GoalStatus.DONE.value and current.status is not GoalStatus.DONE
+        )
+        interval = updates.get("every_seconds", current.every_seconds)
+        final_status = updates.get("status", current.status.value)
+        if becoming_done and interval:
+            # A recurring goal is done for now: schedule the next occurrence. Its deadline
+            # belonged to this occurrence (unless a new one was given in this same update).
+            updates["next_due"] = to_iso(now() + timedelta(seconds=float(interval)))
+            updates["completions"] = current.completions + 1
+            if current.due_at is not None and due_at is None:
+                updates["due_at"] = None
+        elif (
+            interval
+            and final_status == GoalStatus.DONE.value
+            and current.next_due is None
+            and "every_seconds" in updates
+        ):
+            # Made recurring after it was already done: schedule from now.
+            updates["next_due"] = to_iso(now() + timedelta(seconds=float(interval)))
         if updates:
             updates["updated_at"] = to_iso(now())
             assignments = ", ".join(f"{k} = ?" for k in updates)
@@ -160,11 +240,96 @@ class AgendaStore:
         if updates:
             self._emit(
                 "agenda.goal_updated",
-                f"{goal.ref} {goal.status.value}: {goal.title}",
-                {"goal_id": goal_id, "changes": list(updates)},
+                f"{goal.ref} {goal.status.value}: {goal.title}"
+                + (
+                    f" (next due {goal.next_due:%Y-%m-%d %H:%M} UTC)"
+                    if becoming_done and goal.next_due
+                    else ""
+                ),
+                {"goal_id": goal_id, "changes": list(updates), "completed": becoming_done},
                 cycle_id,
             )
         return goal
+
+    def reopen_due(self, cycle_id: str | None = None) -> list[Goal]:
+        """Reopen completed recurring goals whose next occurrence is due."""
+        rows = self.db.query(
+            "SELECT id FROM goals WHERE status = ? AND every_seconds IS NOT NULL "
+            "AND next_due IS NOT NULL AND next_due <= ?",
+            (GoalStatus.DONE.value, to_iso(now())),
+        )
+        reopened = []
+        for row in rows:
+            goal = self.require_goal(row["id"])
+            due = goal.next_due
+            occurrence = goal.completions + 1
+            ts = to_iso(now())
+            with self.db.transaction():
+                changed = self.db.execute(
+                    "UPDATE goals SET status = ?, next_due = NULL, progress_note = ?, "
+                    "updated_at = ? WHERE id = ? AND status = ?",
+                    (
+                        GoalStatus.ACTIVE.value,
+                        f"occurrence {occurrence} is due (recurring every "
+                        f"{format_duration(goal.every_seconds or 0)})",
+                        ts,
+                        goal.id,
+                        GoalStatus.DONE.value,
+                    ),
+                ).rowcount
+                if not changed:
+                    continue  # someone else reopened or changed it meanwhile
+                # Close leftovers and start a fresh plan version for this occurrence, so the
+                # previous occurrence's finished tasks do not make it look complete.
+                self.db.execute(
+                    "UPDATE tasks SET status = ?, note = ?, updated_at = ? "
+                    "WHERE goal_id = ? AND status IN (?, ?)",
+                    (
+                        TaskStatus.SKIPPED.value,
+                        "previous occurrence",
+                        ts,
+                        goal.id,
+                        TaskStatus.TODO.value,
+                        TaskStatus.IN_PROGRESS.value,
+                    ),
+                )
+                version = self.db.scalar(
+                    "SELECT COALESCE(MAX(plan_version), 0) + 1 FROM tasks WHERE goal_id = ?",
+                    (goal.id,),
+                    1,
+                )
+                self.db.insert(
+                    "INSERT INTO tasks(goal_id, title, description, status, depends_on, ord,"
+                    " plan_version, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (
+                        goal.id,
+                        f"Plan occurrence {occurrence}",
+                        "Make a fresh plan for this occurrence with agenda.plan.",
+                        TaskStatus.TODO.value,
+                        "[]",
+                        1,
+                        version,
+                        ts,
+                        ts,
+                    ),
+                )
+            reopened_goal = self.require_goal(goal.id)
+            self._emit(
+                "agenda.goal_reopened",
+                f"{goal.ref} recurring goal due again: {goal.title}",
+                {
+                    "goal_id": goal.id,
+                    "was_due": to_iso(due) if due else None,
+                    "occurrence": occurrence,
+                },
+                cycle_id,
+            )
+            reopened.append(reopened_goal)
+        return reopened
+
+    def overdue(self) -> list[Goal]:
+        current = now()
+        return [g for g in self.goals(open_only=True) if g.due_at and g.due_at <= current]
 
     def goals(self, *, open_only: bool = False, status: GoalStatus | None = None) -> list[Goal]:
         sql = "SELECT * FROM goals"
@@ -391,6 +556,9 @@ class AgendaStore:
                 lines.append("    success: " + "; ".join(goal.success_criteria)[:240])
             if goal.progress_note:
                 lines.append(f"    progress: {one_line(goal.progress_note, 200)}")
+            schedule = schedule_text(goal)
+            if schedule:
+                lines.append(f"    schedule: {schedule}")
             plan = self.current_plan(goal.id)
             ready = {t.id for t in self.ready_tasks(goal.id)}
             for task in plan[:max_tasks]:

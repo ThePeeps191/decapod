@@ -300,6 +300,32 @@ class GitHubSettings(_Section):
     api_url: str = "https://api.github.com"
 
 
+class SiteSettings(_Section):
+    """The static website built from published notes (drive/site/)."""
+
+    build: bool = True
+    title: str | None = None  # default: the charter's name
+    description: str | None = None  # default: the charter's mission
+    #: Public URL of the deployed site, used for absolute links in the RSS feed.
+    base_url: str | None = None
+    #: GitHub repository that site.deploy pushes to, e.g. "me/me.github.io".
+    repo: str | None = None
+    branch: str = "gh-pages"
+    #: Folder inside the repository ("" = repository root).
+    path: str = ""
+
+
+class BrowserSettings(_Section):
+    """browser.read (needs the optional Playwright dependency)."""
+
+    enabled: bool = True
+    #: Chromium to launch; None = Playwright's bundled browser.
+    executable_path: str | None = None
+    timeout: timedelta = timedelta(seconds=30)
+
+    _v = field_validator("timeout", mode="before")(_duration)
+
+
 class MCPServerSettings(_Section):
     name: str
     command: list[str]
@@ -326,11 +352,47 @@ class ToolSettings(_Section):
     email: EmailSettings = Field(default_factory=EmailSettings)
     github: GitHubSettings = Field(default_factory=GitHubSettings)
     feeds: list[FeedSettings] = Field(default_factory=list)
+    site: SiteSettings = Field(default_factory=SiteSettings)
+    browser: BrowserSettings = Field(default_factory=BrowserSettings)
     drive_max_file_bytes: int = 5_000_000
 
 
 class MCPSettings(_Section):
     servers: list[MCPServerSettings] = Field(default_factory=list)
+
+
+class NotifySettings(_Section):
+    """Push notifications to your phone or chat."""
+
+    #: ntfy ("ntfy:my-topic" or an https://ntfy.sh/... URL), Slack or Discord webhook URLs,
+    #: or any URL that accepts a JSON POST. ${VAR} is replaced from your .env secrets.
+    targets: list[str] = Field(default_factory=list)
+    #: Event kinds (globs) that trigger a notification.
+    events: list[str] = Field(
+        default_factory=lambda: [
+            "approval.requested",
+            "daemon.stop",
+            "budget.exhausted",
+            "control.trip",
+            "cycle.error",
+            "report.created",
+            "agenda.goal_reopened",
+        ]
+    )
+    #: Do not repeat the same kind of notification more often than this (approvals exempt).
+    min_interval: timedelta = timedelta(minutes=1)
+
+    _v = field_validator("min_interval", mode="before")(_duration)
+
+
+class ReportSettings(_Section):
+    #: Write a progress report to drive/reports/ this often (e.g. "7d"); None = never.
+    every: timedelta | None = None
+
+    @field_validator("every", mode="before")
+    @classmethod
+    def _every(cls, value: Any) -> Any:
+        return None if value in (None, "", 0) else _duration(value)
 
 
 class Settings(_Section):
@@ -343,6 +405,8 @@ class Settings(_Section):
     memory: MemorySettings = Field(default_factory=MemorySettings)
     tools: ToolSettings = Field(default_factory=ToolSettings)
     mcp: MCPSettings = Field(default_factory=MCPSettings)
+    notify: NotifySettings = Field(default_factory=NotifySettings)
+    report: ReportSettings = Field(default_factory=ReportSettings)
 
 
 # --------------------------------------------------------------------------- loading

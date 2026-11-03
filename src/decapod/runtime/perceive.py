@@ -234,11 +234,46 @@ async def email_percepts(instance: Instance, ctx: ToolContext) -> list[Percept]:
     return percepts
 
 
+def schedule_percepts(instance: Instance, cycle_id: str | None = None) -> list[Percept]:
+    """Recurring goals that came due again, and goals that just became overdue."""
+    percepts = []
+    for goal in instance.agenda.reopen_due(cycle_id):
+        percepts.append(
+            Percept(
+                source="schedule",
+                kind="goal_due",
+                importance=0.7,
+                summary=(
+                    f"Recurring goal {goal.ref} '{one_line(goal.title, 100)}' is due again "
+                    f"(occurrence {goal.completions + 1}). It needs a fresh plan."
+                ),
+                data={"goal_id": goal.id},
+            )
+        )
+    for goal in instance.agenda.overdue():
+        if _seen(instance, "deadline", f"{goal.id}:{to_iso(goal.due_at) if goal.due_at else ''}"):
+            continue
+        percepts.append(
+            Percept(
+                source="schedule",
+                kind="goal_overdue",
+                importance=0.8,
+                summary=(
+                    f"Goal {goal.ref} '{one_line(goal.title, 100)}' is past its deadline. "
+                    "Finish it, renegotiate the deadline, or abandon it."
+                ),
+                data={"goal_id": goal.id},
+            )
+        )
+    return percepts
+
+
 async def perceive(
     instance: Instance, ctx: ToolContext, extra: list[Percept] | None = None
 ) -> list[Percept]:
     percepts: list[Percept] = list(extra or [])
     percepts += crash_percepts(instance)
+    percepts += schedule_percepts(instance)
     percepts += operator_notes(instance)
     percepts += approval_percepts(instance)
     percepts += budget_percepts(instance)

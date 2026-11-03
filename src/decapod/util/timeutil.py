@@ -69,11 +69,30 @@ def format_duration(delta: timedelta | float) -> str:
     hours, rem = divmod(rem, 3600)
     minutes, secs = divmod(rem, 60)
     if days:
-        out = f"{days}d {hours:02d}h"
+        out = f"{days}d {hours:02d}h" if hours else f"{days}d"
     elif hours:
-        out = f"{hours}h {minutes:02d}m"
+        out = f"{hours}h {minutes:02d}m" if minutes else f"{hours}h"
     elif minutes:
-        out = f"{minutes}m {secs:02d}s"
+        out = f"{minutes}m {secs:02d}s" if secs else f"{minutes}m"
     else:
         out = f"{secs}s"
     return f"-{out}" if negative else out
+
+
+def parse_when(value: str, reference: datetime | None = None) -> datetime:
+    """A moment from an ISO date/datetime ("2026-12-01", "2026-12-01T09:00") or an offset
+    from now ("3d", "12h"). Naive times are taken as UTC."""
+    text = value.strip()
+    base = reference or now()
+    try:  # ISO first: "20261201" is a date, not 20 million seconds
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        moment = None
+    if moment is not None and (len(text) >= 8 or not text.isdigit()):
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        return moment
+    try:
+        return base + parse_duration(text)
+    except (ValueError, OverflowError):
+        raise ValueError(f"not a date, datetime or duration: {value!r}") from None

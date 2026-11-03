@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.1.0
+
+- **Recurring goals and deadlines.**
+  - Goals take `every` ("7d") and `due` ("2026-12-01" or "3d").
+  - A completed recurring goal reopens with a fresh plan when it comes due.
+  - Overdue goals are flagged once.
+  - Seed goals in the charter can recur.
+  - Existing databases upgrade in place.
+- **A website and RSS feed.**
+  - Published notes become `drive/site/`, which is rebuilt automatically.
+  - `site.deploy` pushes the site to GitHub Pages in a single commit (tier 3).
+- **`browser.read`.**
+  - Headless Chromium for JavaScript-heavy pages, with optional screenshots (`decapod[browser]`).
+  - Every request a page makes is address-checked.
+- **Notifications** through ntfy, Slack, Discord or any webhook, for approvals, stops and kills, exhausted budgets, safety trips, errors, reports and recurring goals coming due.
+- **Progress reports**:
+  - `decapod report --since 7d` builds one on demand.
+  - `[report] every` makes the daemon write one on a schedule.
+  - Reports use no model calls.
+- **`decapod web`** serves the monitor in a browser (`decapod[web]`). It is protected by a per-launch token plus Host and Origin checks.
+- **Hardening from review**:
+  - The browser runs behind an IP-pinning filtering proxy, so redirects, WebSockets and DNS rebinding can't reach private hosts.
+  - `site.deploy` rebuilds first, ships only generated files, finds escaped secrets and deletes stale pages.
+  - Note slugs are sanitized.
+  - Reopened recurring goals get a fresh plan.
+  - Recurrence is bounded between hourly and yearly.
+  - Basic ISO dates parse as dates.
+  - ntfy titles support Unicode.
+  - Reports count real completions only.
+
 ## 1.0.0
 
 The first complete release. Decapod was rebuilt from the early prototype into a full system:

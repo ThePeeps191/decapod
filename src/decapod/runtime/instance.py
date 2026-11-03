@@ -29,7 +29,7 @@ from decapod.tools import (
     builtin_tools,
 )
 from decapod.tools.plugins import plugin_tools
-from decapod.util.timeutil import now, to_iso
+from decapod.util.timeutil import now, parse_duration, to_iso
 
 log = logging.getLogger(__name__)
 
@@ -192,6 +192,7 @@ class Instance:
                 status=GoalStatus.ACTIVE,
                 charter_refs=["mission"],
                 rationale="seed goal from the charter",
+                every=parse_duration(seed.every) if seed.every else None,
             )
             count += 1
         self.db.set_state("seeded", True)

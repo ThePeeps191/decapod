@@ -160,7 +160,7 @@ async def test_publish_notes(registry, make_ctx):
     assert first.data["path"] != second.data["path"]
     index = (await run(registry, ctx, "notes.index")).output
     assert index.count("Tide Pools 101") == 2
-    body = (ctx.paths.drive / first.data["path"]).read_text()
+    body = (ctx.paths.drive / first.data["path"]).read_text(encoding="utf-8")
     assert "autonomous AI agent" in body and "All about tide pools." in body
     assert slugify("Hello, World!") == "hello-world"
     assert slugify("!!!") == "note"
@@ -501,4 +501,4 @@ async def test_bwrap_sandbox_isolation(tmp_path):
         "net blocked",
         "etc blocked",
     ]
-    assert (root / "drive" / "sandbox" / "out.txt").read_text() == "hi"
+    assert (root / "drive" / "sandbox" / "out.txt").read_text(encoding="utf-8") == "hi"

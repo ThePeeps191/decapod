@@ -40,6 +40,7 @@ from decapod.control import Approvals, Budget, issue_command
 from decapod.daemon import running_pid
 from decapod.domain import ControlCommand, GoalStatus, MemoryKind, TaskStatus
 from decapod.memory import AgendaStore, MemoryStore
+from decapod.memory.agenda import schedule_text
 from decapod.storage import Database, EventLog, loads, read_events, read_recent
 from decapod.util.timeutil import now, to_iso
 
@@ -435,7 +436,8 @@ class DecapodTUI(App[None]):
             node = tree.root.add(
                 Text.from_markup(
                     f"[{colors[goal.status]}]{goal.ref} {escape(goal.title)}[/] "
-                    f"[dim]{goal.status.value} · p{goal.priority:.2f} · {done}/{total}[/]"
+                    f"[dim]{goal.status.value} · p{goal.priority:.2f} · {done}/{total}"
+                    f"{' · ' + escape(schedule_text(goal)) if schedule_text(goal) else ''}[/]"
                 ),
                 expand=goal.status.is_open,
             )

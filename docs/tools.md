@@ -12,7 +12,7 @@ The policy engine decides whether each call runs, needs approval or is denied. `
 
 | Tool | Tier | Scope | Notes |
 |---|---|---|---|
-| `agenda.add_goal`, `agenda.update_goal`, `agenda.plan`, `agenda.update_task` | 0 | – | Goals must cite charter clauses; plans are versioned DAGs |
+| `agenda.add_goal`, `agenda.update_goal`, `agenda.plan`, `agenda.update_task` | 0 | – | Goals must cite charter clauses, and can recur (`every = "7d"`) or have a deadline (`due`). Plans are versioned DAGs |
 | `memory.remember`, `memory.search` | 0 | – | Semantic facts, plus search across all memory |
 | `self.status`, `clock.now` | 0 | – | |
 | `charter.propose_amendment` | 0 | – | Recorded for the operator; it cannot edit the charter |
@@ -20,7 +20,10 @@ The policy engine decides whether each call runs, needs approval or is denied. `
 | `notes.index` | 0 | `drive.read` | |
 | `drive.write`, `drive.delete` | 2 | `drive.write` | Delete moves files to `.trash` |
 | `notes.publish` | 2 | `notes.publish` | Markdown with front matter, plus an index, in `drive/published/` |
+| `site.build` | 2 | `notes.publish` | Rebuild `drive/site/` (HTML + RSS). This also happens on every publish |
+| `site.deploy` | 3 | `github:OWNER/REPO:write` | Rebuild, then push the site to the `[tools.site]` repository in one commit. Removes pages of deleted notes. Refuses if any note or page contains a secret |
 | `web.search` | 1 | `web.read` | DuckDuckGo (default), SearXNG or Brave |
+| `browser.read` | 1 | `web.read` | Headless Chromium, with JavaScript rendering and optional screenshots. All traffic goes through a filtering proxy that address-checks and IP-pins every connection. Needs `decapod[browser]` |
 | `web.fetch` | 1 | `web.read` | Readable text, size limit, SSRF checks on every redirect |
 | `feeds.read` | 1 | `web.read` | RSS and Atom; entity declarations refused |
 | `code.run` | 2 | `code.run` | bubblewrap sandbox (see `docs/safety.md`) |
@@ -38,6 +41,7 @@ Some things reach Decapod as percepts, without it having to act:
 - New items from `[[tools.feeds]]` (checked every 30 minutes).
 - New email (every `tools.email.poll_interval`).
 - Operator notes (`decapod note`).
+- Recurring goals that come due again, and goals that pass their deadline.
 - Approval outcomes.
 - Budget warnings.
 

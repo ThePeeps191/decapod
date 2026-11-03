@@ -108,6 +108,25 @@ def _proposals(text: str, role: str) -> dict[str, Any]:
             ]
         }
     lowered = task_title.lower()
+    if lowered.startswith("plan occurrence"):
+        return {
+            "proposals": [
+                {
+                    "tool": "agenda.plan",
+                    "args": {
+                        "goal_id": goal_id,
+                        "tasks": [
+                            {"title": "Research the topic", "description": f"About {topic}."},
+                            {"title": "Write and publish the note", "depends_on": [1]},
+                        ],
+                    },
+                    "goal_id": goal_id,
+                    "rationale": "A recurring goal came due: plan this occurrence.",
+                    "expected_outcome": "a fresh plan",
+                    "confidence": 0.8,
+                }
+            ]
+        }
     if "research" in lowered:
         if "web.search(" in catalog:
             args: dict[str, Any] = {"query": topic, "max_results": 5}

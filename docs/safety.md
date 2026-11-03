@@ -51,6 +51,9 @@ Decapod runs without a human in the loop, so its limits must hold even when a mo
 **SSRF and local network access.**
 - `web.fetch` and `feeds.read` resolve every hop, including redirects, and refuse any address that is not globally routable unless the operator allows it. That covers loopback, private, link-local, carrier-grade NAT (cloud metadata), reserved, multicast, and IPv4 addresses mapped into IPv6.
 - After connecting, the actual peer address is checked again, which defeats DNS rebinding.
+- `browser.read` forces all of Chromium's traffic through a built-in filtering proxy (QUIC and non-proxied WebRTC are disabled, and localhost cannot bypass the proxy). Every connection — redirect hops, sub-resources, XHR/fetch and WebSockets — is resolved once, checked against the same policy, and pinned to the vetted IP. Downloads and service workers are disabled.
+
+**The web dashboard.** `decapod web` requires a random per-launch token (in the printed URL, then kept in a SameSite=Strict, HttpOnly cookie). It checks the Host header and rejects cross-origin WebSockets, so other web pages, including pages the agent browses, cannot drive the dashboard.
 
 **Code execution.**
 - `code.run` is available only with bubblewrap. Bubblewrap gives it:
@@ -61,6 +64,13 @@ Decapod runs without a human in the loop, so its limits must hold even when a mo
   - no network by default
   - resource limits
 - Without bubblewrap, the operator has to opt in with `isolation = "none"`, and the docs say plainly that this is not a sandbox.
+
+**Publishing.**
+- `site.deploy` is a tier-3 action (approval by default) and needs a per-repository scope.
+- It always deploys a fresh build, and only the generated files. `drive/site/` is read-only to the drive tools.
+- It refuses if a note or generated file contains a configured secret, including in HTML-escaped form.
+- Pages of deleted notes are removed from the published site.
+- Note filenames are slugified, so they cannot inject markup.
 
 **Operator lockout.**
 - The kill switch has three independent paths: the TUI, the CLI (`decapod kill` escalates to SIGTERM, then SIGKILL) and a `STOP` file in the instance folder.

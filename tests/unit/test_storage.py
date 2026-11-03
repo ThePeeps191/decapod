@@ -16,7 +16,10 @@ def test_migrations_idempotent(tmp_path):
     path = tmp_path / "x.db"
     Database(path).close()
     with Database(path) as again:
-        assert again.scalar("SELECT value FROM meta WHERE key='schema_version'") == "1"
+        from decapod.storage.schema import MIGRATIONS
+
+        latest = str(max(v for v, _ in MIGRATIONS))
+        assert again.scalar("SELECT value FROM meta WHERE key='schema_version'") == latest
         assert again.has_fts
 
 
@@ -94,3 +97,25 @@ def test_bus_queue_and_broken_subscriber():
     bus.publish(Event(kind="x1"))
     bus.publish(Event(kind="x2"))  # drops oldest when full
     assert q.get_nowait().kind == "x2"
+
+
+def test_upgrade_from_v1_database(tmp_path, monkeypatch):
+    """A database created by Decapod 1.0 (schema v1) upgrades in place."""
+    from decapod.storage import schema
+
+    path = tmp_path / "old.db"
+    monkeypatch.setattr(schema, "MIGRATIONS", schema.MIGRATIONS[:1])
+    import decapod.storage.db as dbmod
+
+    monkeypatch.setattr(dbmod, "MIGRATIONS", schema.MIGRATIONS[:1])
+    old = Database(path)
+    old.execute(
+        "INSERT INTO goals(title, status, created_at, updated_at) "
+        "VALUES ('legacy', 'active', 'x', 'x')"
+    )
+    old.close()
+    monkeypatch.undo()
+    with Database(path) as upgraded:
+        row = upgraded.query_one("SELECT title, every_seconds, completions FROM goals")
+        assert row["title"] == "legacy" and row["every_seconds"] is None
+        assert row["completions"] == 0

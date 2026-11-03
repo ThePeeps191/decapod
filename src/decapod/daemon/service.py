@@ -16,8 +16,10 @@ from decapod.daemon.pidfile import PidFile
 from decapod.daemon.scheduler import Scheduler, SleepPlan
 from decapod.domain import Event, Halted, RunState
 from decapod.llm import LLMProvider
+from decapod.notify import Notifier
+from decapod.report import build_report, save_report
 from decapod.runtime import Instance, Runtime
-from decapod.util.timeutil import now, to_iso
+from decapod.util.timeutil import from_iso, now, to_iso
 
 log = logging.getLogger(__name__)
 HEARTBEAT_S = 2.0
@@ -45,6 +47,7 @@ class Daemon:
         self.use_pidfile = use_pidfile
         self._cycle_task: asyncio.Task[object] | None = None
         self.cycles_run = 0
+        self.notifier: Notifier | None = None
 
     @property
     def controller(self) -> Controller:
@@ -58,6 +61,12 @@ class Daemon:
             pidfile.acquire()
         if self.on_event is not None:
             inst.bus.subscribe(self.on_event)
+        notifier = Notifier(
+            self.config.settings.notify, inst.secrets, inst.http, self.config.charter.name
+        )
+        if notifier.enabled:
+            inst.bus.subscribe(notifier.handle)
+        self.notifier = notifier
         ctl = inst.controller
         restore_signals = self._install_signals()
         heartbeat = asyncio.create_task(self._heartbeat(), name="decapod-heartbeat")
@@ -103,6 +112,8 @@ class Daemon:
                     {"state": final.value, "reason": ctl.reason, "cycles": self.cycles_run},
                     actor="daemon",
                 )
+            with contextlib.suppress(Exception):
+                await notifier.drain()  # deliver the stop notice before the client closes
             await inst.close()
             if pidfile is not None:
                 pidfile.release()
@@ -124,6 +135,7 @@ class Daemon:
             finally:
                 self._cycle_task = None
             self.cycles_run += 1
+            self._maybe_report()
             if result.lifetime_exhausted:
                 ctl.trip("lifetime budget exhausted")
                 await ctl.checkpoint("idle")
@@ -132,6 +144,32 @@ class Daemon:
                 await ctl.checkpoint("idle")
             plan = self.scheduler.plan(result)
             await self._sleep(plan)
+
+    def _maybe_report(self) -> None:
+        """Write a periodic progress report when one is due ([report] every)."""
+        every = self.config.settings.report.every
+        if every is None:
+            return
+        db = self.instance.db
+        last = db.get_state("last_report_at")
+        current = now()
+        if last is None:
+            db.set_state("last_report_at", to_iso(current))  # first report after one period
+            return
+        if current - from_iso(last) < every:
+            return
+        try:
+            report = build_report(db, self.config.charter, every)
+            path = save_report(report, self.config.paths.drive)
+        except Exception as exc:  # a report must never take the agent down
+            log.exception("report failed")
+            self.instance.events.append("report.error", f"report failed: {exc}", {}, actor="daemon")
+            return
+        db.set_state("last_report_at", to_iso(current))
+        rel = path.relative_to(self.config.paths.drive).as_posix()
+        self.instance.events.append(
+            "report.created", f"{report.summary} (drive/{rel})", {"path": rel}, actor="daemon"
+        )
 
     async def _sleep(self, plan: SleepPlan) -> None:
         inst = self.instance

@@ -36,4 +36,5 @@ contact_policy = "reply_only"
 # Optional starting goals. Decapod adds, re-prioritizes and retires goals on its own.
 seed = [
     { title = "Publish a first briefing on tide pool ecosystems", description = "Research the basics of tide pool ecology and publish a short, sourced note.", priority = 0.7 },
+    { title = "Publish the weekly briefing", description = "Each week, research one tidal-ecology topic in depth and publish a sourced briefing.", priority = 0.6, every = "7d" },
 ]

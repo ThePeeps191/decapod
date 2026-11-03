@@ -42,6 +42,9 @@ def test_format_duration():
     assert format_duration(timedelta(hours=1, minutes=5)) == "1h 05m"
     assert format_duration(timedelta(days=2, hours=3)) == "2d 03h"
     assert format_duration(-5) == "-5s"
+    assert format_duration(timedelta(days=7)) == "7d"
+    assert format_duration(timedelta(hours=2)) == "2h"
+    assert format_duration(timedelta(minutes=5)) == "5m"
 
 
 def test_truncate_and_one_line():

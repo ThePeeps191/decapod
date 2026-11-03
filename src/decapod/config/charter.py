@@ -68,6 +68,19 @@ class SeedGoal(_Section):
     title: str
     description: str = ""
     priority: float = 0.6
+    #: Optional recurrence, e.g. "7d" for a weekly goal.
+    every: str | None = None
+
+    @field_validator("every")
+    @classmethod
+    def _every(cls, value: str | None) -> str | None:
+        if value is not None:
+            from decapod.util.timeutil import parse_duration
+
+            seconds = parse_duration(value).total_seconds()
+            if seconds < 3600 or seconds > 366 * 86400:
+                raise ValueError("a recurring goal must repeat between hourly and yearly")
+        return value
 
 
 class Goals(_Section):
