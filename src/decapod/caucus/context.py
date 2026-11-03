@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from decapod.config.charter import Charter
 from decapod.domain import Goal, Memory, Percept, Task
 from decapod.memory.context import Section, assemble
 from decapod.util.text import one_line
+from decapod.util.timeutil import from_iso, to_iso
 
 
 @dataclass
@@ -101,3 +103,51 @@ class WorkingContext:
             if section is not None and (section.body.strip() or name in ("agenda", "recent")):
                 sections.append(section)
         return assemble(sections, budget)
+
+    # ------------------------------------------------------------------ persistence
+
+    def to_payload(self) -> dict[str, Any]:
+        """Everything needed to rebuild this context later (for ``decapod replay``)."""
+        return {
+            "cycle_id": self.cycle_id,
+            "seq": self.seq,
+            "now": to_iso(self.now),
+            "charter_sha": self.charter.sha256,
+            "agenda_text": self.agenda_text,
+            "focus_goal": self.focus_goal.model_dump(mode="json") if self.focus_goal else None,
+            "focus_task": self.focus_task.model_dump(mode="json") if self.focus_task else None,
+            "percepts": [p.model_dump(mode="json") for p in self.percepts],
+            "recent_text": self.recent_text,
+            "memories": [m.model_dump(mode="json") for m in self.memories],
+            "lessons": [m.model_dump(mode="json") for m in self.lessons],
+            "budget_text": self.budget_text,
+            "planner_notes": self.planner_notes,
+            "catalog": self.catalog,
+            "loop_warning": self.loop_warning,
+            "last_failed": self.last_failed,
+            "has_active_goals": self.has_active_goals,
+            "token_budget": self.token_budget,
+        }
+
+    @classmethod
+    def from_payload(cls, data: dict[str, Any], charter: Charter) -> WorkingContext:
+        return cls(
+            cycle_id=data["cycle_id"],
+            seq=int(data["seq"]),
+            now=from_iso(data["now"]),
+            charter=charter,
+            agenda_text=data.get("agenda_text", ""),
+            focus_goal=Goal.model_validate(data["focus_goal"]) if data.get("focus_goal") else None,
+            focus_task=Task.model_validate(data["focus_task"]) if data.get("focus_task") else None,
+            percepts=[Percept.model_validate(p) for p in data.get("percepts", [])],
+            recent_text=data.get("recent_text", ""),
+            memories=[Memory.model_validate(m) for m in data.get("memories", [])],
+            lessons=[Memory.model_validate(m) for m in data.get("lessons", [])],
+            budget_text=data.get("budget_text", ""),
+            planner_notes=list(data.get("planner_notes", [])),
+            catalog=data.get("catalog", ""),
+            loop_warning=data.get("loop_warning"),
+            last_failed=bool(data.get("last_failed")),
+            has_active_goals=bool(data.get("has_active_goals")),
+            token_budget=int(data.get("token_budget", 6000)),
+        )

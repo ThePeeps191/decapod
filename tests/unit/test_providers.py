@@ -34,7 +34,7 @@ def test_anthropic_preferred_and_mixed_routing():
 
 def test_problems_are_reported():
     routing = resolve_routes(LLMSettings(), Secrets({}))
-    assert not routing.ok and "no provider API key" in routing.problems[0]
+    assert not routing.ok and "no model provider API key" in routing.problems[0]
     groq = resolve_routes(LLMSettings(), Secrets({"GROQ_API_KEY": "x"}))
     assert any("no model for tier FLASH" in p for p in groq.problems)
     missing_key = resolve_routes(LLMSettings(default_provider="deepseek"), Secrets({}))

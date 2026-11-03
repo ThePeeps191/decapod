@@ -156,3 +156,18 @@ async def test_approval_flow_end_to_end(tmp_path):
     percepts = __import__("decapod.runtime.perceive", fromlist=["x"]).approval_percepts(instance)
     assert any("executed" in p.summary for p in percepts)
     await instance.close()
+
+
+async def test_replay_reproduces_a_recorded_cycle(tmp_path):
+    from decapod.runtime.replay import replay_cycle
+
+    config, instance = make_instance(tmp_path)
+    await Daemon(config, instance=instance, max_cycles=3).run()
+    for cycle_id in ("c00001", "c00002", "c00003"):
+        report = await replay_cycle(config, cycle_id)
+        assert report.matches, report
+        assert report.misses == [] and not report.charter_changed
+    import pytest as _pytest
+
+    with _pytest.raises(KeyError):
+        await replay_cycle(config, "c99999")

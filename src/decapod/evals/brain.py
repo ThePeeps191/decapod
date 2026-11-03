@@ -46,6 +46,8 @@ def _proposals(text: str, role: str) -> dict[str, Any]:
     if role not in ("planner", "operator", "strategist"):
         return {"proposals": []}
     goal_id, goal_title, task_id, task_title = _focus(text)
+    if role == "strategist" and goal_id is not None:
+        return {"proposals": []}  # the strategist only steps in when the agenda is empty
     catalog = text.split("# Available tools", 1)[-1]
     topic = _topic(text)
     if goal_id is None:
@@ -64,6 +66,22 @@ def _proposals(text: str, role: str) -> dict[str, Any]:
                     "rationale": "The agenda is empty.",
                     "expected_outcome": "a first goal",
                     "confidence": 0.8,
+                }
+            ]
+        }
+    if task_id is None and ("failed or stalled" in text or "none is ready" in text):
+        return {
+            "proposals": [
+                {
+                    "tool": "agenda.plan",
+                    "args": {
+                        "goal_id": goal_id,
+                        "tasks": [{"title": "Write and publish the note from what you know"}],
+                    },
+                    "goal_id": goal_id,
+                    "rationale": "Research keeps failing; re-plan around it.",
+                    "expected_outcome": "a plan that avoids the failing step",
+                    "confidence": 0.7,
                 }
             ]
         }
@@ -161,11 +179,11 @@ def _reflection(text: str) -> dict[str, Any]:
         "lessons": [],
         "dissent_vindicated": None,
     }
-    if task and ok:
+    if task:
         result["task_update"] = {
             "task_id": int(task.group(1)),
-            "status": "done",
-            "note": "completed",
+            "status": "done" if ok else "failed",
+            "note": "completed" if ok else "the action failed",
         }
     if goal and ok and "notes.publish" in decision:
         result["goal_update"] = {

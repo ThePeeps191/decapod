@@ -213,6 +213,13 @@ def resolve_routes(
             f"provider (known: {', '.join(configs)})"
         )
     routes: dict[Tier, Route] = {}
+    if default is None and not settings.tiers and not placeholder:
+        keys = ", ".join(e for e in known_key_envs()[:4])
+        problems.append(
+            f"no model provider API key found: set one (e.g. {keys}, ...) in a "
+            ".env file, or configure [llm] in decapod.toml"
+        )
+        return Routing(None, {}, {}, problems)
     for tier in Tier:
         spec = settings.tiers.get(tier)
         if spec:
@@ -248,8 +255,6 @@ def resolve_routes(
         if provider is not None:
             embeddings = Route(provider, model)
             used.add(provider)
-    if not routes and not problems:
-        problems.append("no model tiers could be resolved")
     return Routing(
         default_provider=default,
         routes=routes,

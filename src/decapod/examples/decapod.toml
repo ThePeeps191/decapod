@@ -1,0 +1,98 @@
+# Decapod instance configuration. Every setting is optional; the values shown are defaults.
+# Durations accept "30s", "5m", "2h", "1d". Override any setting with an environment
+# variable: DECAPOD_<SECTION>__<KEY>, e.g. DECAPOD_BUDGET__DAILY__USD=1.5
+
+[instance]
+name = "@@NAME@@"
+charter = "charter.toml"
+
+# ------------------------------------------------------------------ models
+# Decapod talks to any OpenAI-compatible API. Put API keys in .env (this folder) or in the
+# user-wide .env; with nothing set here, Decapod uses the first provider whose key it finds
+# (Anthropic, OpenAI, OpenRouter, DeepSeek, Gemini, Mistral, Groq, Together, xAI, Fireworks).
+#
+# Three model tiers:
+#   FLASH  fast and cheap: specialists, triage, memory upkeep
+#   PRO    capable: managers, reflection, most executive decisions
+#   MAX    your strongest model: the executive on high-stakes decisions
+[llm]
+@@PROVIDER@@
+# Route any tier to any provider with "provider:model" (or just "model").
+[llm.tiers]
+@@TIERS@@
+# A custom OpenAI-compatible endpoint (vLLM, a gateway, ...):
+# [llm.providers.mybox]
+# base_url = "http://10.0.0.5:8000/v1"
+# api_key_env = "MYBOX_API_KEY"   # or: requires_key = false
+# models = { FLASH = "qwen3-8b", PRO = "qwen3-32b", MAX = "qwen3-235b" }
+#
+# Prices (USD per million tokens) make the USD budget meaningful:
+# [llm.pricing]
+# "anthropic:claude-haiku-5-5" = { input = 1.0, output = 5.0 }
+
+# ------------------------------------------------------------------ rhythm
+[schedule]
+min_interval = "30s"    # pause between busy cycles
+idle_interval = "10m"   # when it decides to wait without saying how long
+max_interval = "2h"
+
+# ------------------------------------------------------------------ budgets (hard ceilings)
+[budget.cycle]
+llm_requests = 40
+tool_calls = 5
+
+[budget.hourly]
+llm_requests = 300
+
+[budget.daily]
+usd = 2.0
+llm_requests = 2000
+outbound = 10
+
+[budget.lifetime]
+usd = 50.0
+
+# ------------------------------------------------------------------ policy
+# Risk tiers: 0 internal, 1 read, 2 local write, 3 external write, 4 irreversible.
+# Modes: "auto", "approval" (operator approves in the TUI/CLI) or "deny".
+[policy.modes]
+tier3 = "approval"
+tier4 = "approval"
+
+# Per-scope overrides, e.g. let it reply to email without asking:
+# [policy.scope_modes]
+# "email.send" = "auto"
+
+# ------------------------------------------------------------------ caucus
+[caucus]
+max_level = "L3"        # cap deliberation depth (L1 is cheapest that still debates)
+review_every = 12       # full agenda review every N cycles
+llm_triage = true
+
+# ------------------------------------------------------------------ tools
+[tools.web]
+search_provider = "duckduckgo"   # or "searxng" (set searxng_url) or "brave" (BRAVE_API_KEY)
+
+[tools.code]
+isolation = "auto"      # code.run needs bubblewrap; "none" runs unisolated (not a sandbox)
+
+# Feeds to watch (new items become percepts):
+# [[tools.feeds]]
+# name = "arXiv q-bio.PE"
+# url = "https://export.arxiv.org/rss/q-bio.PE"
+
+# [tools.email]
+# enabled = true
+# address = "agent@example.com"
+# imap_host = "imap.example.com"
+# smtp_host = "smtp.example.com"
+# # credentials: DECAPOD_EMAIL_USERNAME / DECAPOD_EMAIL_PASSWORD in .env
+
+# [tools.github]
+# enabled = true          # token: GITHUB_TOKEN in .env
+
+# MCP servers (tools are imported as mcp.<name>.<tool>, tier 3 unless you say otherwise):
+# [[mcp.servers]]
+# name = "fetch"
+# command = ["uvx", "mcp-server-fetch"]
+# default_tier = 1

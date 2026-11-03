@@ -131,20 +131,7 @@ class Runtime:
         inst.events.append(
             "cycle.context",
             f"focus: {one_line(context.focus_text, 160)}",
-            {
-                "rendered": context.render(
-                    (
-                        "agenda",
-                        "percepts",
-                        "recent",
-                        "memories",
-                        "lessons",
-                        "budget",
-                        "planner_notes",
-                    )
-                ),
-                "seq": seq,
-            },
+            {"context": context.to_payload()},
             cycle_id=cycle_id,
         )
 
