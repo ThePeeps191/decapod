@@ -192,8 +192,11 @@ class Controller:
             raise Halted(self.reason or "stopped")
 
     async def sleep(self, seconds: float) -> bool:
-        """Sleep until timeout or wake/command. Returns True if woken early."""
-        self.wake.clear()
+        """Sleep until timeout or wake/command. Returns True if woken early.
+
+        The caller clears ``wake`` before a sleep period; this method never does, so a wake
+        command processed by a background poll in between is not lost.
+        """
         loop = asyncio.get_running_loop()
         deadline = loop.time() + max(0.0, seconds)
         while True:
