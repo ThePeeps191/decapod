@@ -24,7 +24,10 @@ contact_policy = "reply_only"           # or "any"
 disclosure = "\n\n—\nWritten by {name}, an autonomous AI agent."
 
 [goals]
-seed = [{ title = "Publish a first briefing", description = "...", priority = 0.7 }]
+seed = [
+    { title = "Publish a first briefing", description = "...", priority = 0.7 },
+    { title = "Publish the weekly briefing", every = "7d" },   # recurring
+]
 ```
 
 ## Mission
@@ -69,6 +72,8 @@ Granting a scope does not mean it can act freely. Risk-tier policy still applies
 ## Seed goals
 
 Optional. They are added once, to an empty agenda, on the first start. After that the agenda belongs to Decapod.
+
+A seed goal with `every` (at most hourly) recurs. Each time Decapod marks it done, the next occurrence is scheduled; when it comes due, the goal reopens with a fresh plan.
 
 ## Examples
 

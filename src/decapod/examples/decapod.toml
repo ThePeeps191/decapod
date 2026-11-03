@@ -91,8 +91,34 @@ isolation = "auto"      # code.run needs bubblewrap; "none" runs unisolated (not
 # [tools.github]
 # enabled = true          # token: GITHUB_TOKEN in .env
 
+# Your website: published notes become drive/site/ (HTML + RSS feed). site.deploy pushes it
+# to a GitHub Pages repository (needs [tools.github] and the charter scope
+# "github:you/you.github.io:write"; tier 3, so it asks for approval by default).
+# [tools.site]
+# title = "Tidepool"
+# base_url = "https://you.github.io"
+# repo = "you/you.github.io"
+# branch = "gh-pages"
+
+# browser.read renders JavaScript-heavy pages: pip install 'decapod[browser]' and
+# `playwright install chromium`.
+# [tools.browser]
+# executable_path = "/path/to/chrome"   # optional
+
 # MCP servers (tools are imported as mcp.<name>.<tool>, tier 3 unless you say otherwise):
 # [[mcp.servers]]
 # name = "fetch"
 # command = ["uvx", "mcp-server-fetch"]
 # default_tier = 1
+
+# ------------------------------------------------------------------ notifications & reports
+# Push alerts to your phone or chat (ntfy, Slack, Discord or any JSON webhook).
+# ${VAR} is read from your .env, so webhook secrets stay out of this file.
+# [notify]
+# targets = ["ntfy:${NTFY_TOPIC}"]
+# events = ["approval.requested", "daemon.stop", "budget.exhausted", "control.trip",
+#           "cycle.error", "report.created", "agenda.goal_reopened"]
+
+# A progress report in drive/reports/ (and a notification) every week:
+# [report]
+# every = "7d"

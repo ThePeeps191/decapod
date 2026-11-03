@@ -28,7 +28,7 @@ The things that keep it safe are not prompts. **Budgets, permissions, approvals 
 
 ## Features
 
-- **Self-directed agenda.** Decapod proposes, prioritizes, plans and retires its own goals. Every goal must cite the charter clause it serves.
+- **Self-directed agenda.** Decapod proposes, prioritizes, plans and retires its own goals. Every goal must cite the charter clause it serves. Goals can recur ("publish a briefing every 7 days") and have deadlines.
 - **The caucus.** Strategy, operations and oversight chambers (Strategist, Planner, Opportunist, Operator, Researcher, Economist, Critic, Risk Officer, Historian) feed chamber managers and an executive. Debate depth scales with the stakes:
   - **L0 reflex**: two model calls, for routine steps.
   - **L3 grave**: a full two-round debate with your strongest model, for anything external or irreversible.
@@ -43,9 +43,11 @@ The things that keep it safe are not prompts. **Budgets, permissions, approvals 
   - Secret redaction and SSRF protection.
   - An AI-disclosure footer on every outbound message.
   - A reply-only contact policy enforced in code.
-- **Tools.** Web search and fetch, RSS feeds, a private drive, local Markdown publishing, sandboxed Python (bubblewrap), email (IMAP/SMTP), GitHub with per-repository scopes, and any **MCP** server.
+- **Tools.** Web search and fetch, a headless browser for JavaScript-heavy pages, RSS feeds, a private drive, sandboxed Python (bubblewrap), email (IMAP/SMTP), GitHub with per-repository scopes, any **MCP** server, and your own plugins.
+- **Its own website.** Published notes become a static site with an RSS feed. With your approval, Decapod can deploy it to GitHub Pages in one commit.
 - **Any model provider.** It works with any OpenAI-compatible API: Anthropic, OpenAI, OpenRouter, DeepSeek, Gemini, Mistral, Groq, Together, xAI, Fireworks, Ollama, LM Studio or your own endpoint. Drop API keys into a `.env` file and it picks one. Route each of the three tiers (FLASH, PRO, MAX) wherever you like.
-- **Watch it think.** A Textual TUI with a dashboard, live feed, a per-cycle caucus viewer, the agenda tree, memory search, approvals and controls.
+- **Watch it think.** A Textual TUI with a dashboard, live feed, a per-cycle caucus viewer, the agenda tree, memory search, approvals and controls. `decapod web` serves the same monitor in your browser.
+- **Stay informed.** Push notifications (ntfy, Slack, Discord or any webhook) when approvals wait, it stops or something goes wrong. Scheduled progress reports, written with no model calls.
 - **Reproducible.** `decapod replay <cycle>` re-runs any recorded deliberation from its logged responses. `decapod eval` runs scenario evals: steady progress, prompt-injection resistance, budget discipline, loop escape and charter adherence.
 
 ## Quick start
@@ -77,6 +79,8 @@ decapod start
 ```bash
 decapod tui
 ```
+
+Optional extras: `pip install 'decapod[browser]'` (then `playwright install chromium`) for the browser tool, `'decapod[web]'` for the browser dashboard, or `'decapod[all]'` for both.
 
 No API key yet? Try the built-in scripted brain, a deterministic stand-in for a model:
 
@@ -160,6 +164,9 @@ See `decapod charters` for the examples (researcher, writer, maintainer, minimal
 | `decapod log -f`, `decapod show [CYCLE]` | Follow events; read one cycle's whole debate |
 | `decapod replay CYCLE` | Re-run a recorded deliberation deterministically |
 | `decapod eval [--real] [--compare-levels]` | Scenario evals with the scripted brain or your models |
+| `decapod report --since 7d` | Progress report: cycles, spend, goals, notes, lessons (no model calls) |
+| `decapod notify "…"` | Send a test notification to your configured targets |
+| `decapod web` | The monitor in your browser (`pip install 'decapod[web]'`) |
 | `decapod amendments` | Charter changes it has proposed |
 | `decapod ask "…" --tier PRO` | One-off model call, for debugging |
 

@@ -51,6 +51,7 @@ Decapod runs without a human in the loop, so its limits must hold even when a mo
 **SSRF and local network access.**
 - `web.fetch` and `feeds.read` resolve every hop, including redirects, and refuse any address that is not globally routable unless the operator allows it. That covers loopback, private, link-local, carrier-grade NAT (cloud metadata), reserved, multicast, and IPv4 addresses mapped into IPv6.
 - After connecting, the actual peer address is checked again, which defeats DNS rebinding.
+- `browser.read` applies the same check to every request a page makes (scripts, images, XHR, redirects), and disables downloads and service workers.
 
 **Code execution.**
 - `code.run` is available only with bubblewrap. Bubblewrap gives it:
@@ -61,6 +62,8 @@ Decapod runs without a human in the loop, so its limits must hold even when a mo
   - no network by default
   - resource limits
 - Without bubblewrap, the operator has to opt in with `isolation = "none"`, and the docs say plainly that this is not a sandbox.
+
+**Publishing.** `site.deploy` is a tier-3 action (approval by default), needs a per-repository scope, and refuses to push any file that contains a configured secret.
 
 **Operator lockout.**
 - The kill switch has three independent paths: the TUI, the CLI (`decapod kill` escalates to SIGTERM, then SIGKILL) and a `STOP` file in the instance folder.

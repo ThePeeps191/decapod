@@ -102,6 +102,22 @@ The windows are `cycle`, `hourly`, `daily` (local midnight) and `lifetime`. Each
 - `[tools.email]`: `enabled`, `address`, `imap_host`, `imap_port`, `smtp_host`, `smtp_port`, `username_env`, `password_env`, `mailbox`, `poll_interval`.
 - `[tools.github]`: `enabled`, `token_env`, `api_url`.
 - `[[tools.feeds]]`: `url`, `name`.
+- `[tools.site]`: `build` (rebuild on every publish, default true), `title`, `description`, `base_url` (for absolute RSS links), `repo` (the GitHub Pages repository for `site.deploy`), `branch` (`gh-pages`), `path` (a folder inside the repo).
+- `[tools.browser]`: `enabled`, `executable_path` (a Chromium binary, if Playwright's own isn't installed), `timeout` (`30s`).
+
+## `[notify]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `targets` | `[]` | `"ntfy:topic"`, an ntfy URL, a Slack or Discord webhook, or any URL that accepts a JSON POST. `${VAR}` is replaced from your secrets |
+| `events` | approvals, stop/kill, budget exhausted, safety trip, cycle errors, reports, recurring goals due | Event kinds (globs) that trigger a notification |
+| `min_interval` | `1m` | Don't repeat the same kind of notification more often than this. Approvals are exempt |
+
+`decapod notify "hello"` sends a test message.
+
+## `[report]`
+
+`every` (for example `"7d"`; off by default): the daemon writes a progress report to `drive/reports/` and sends a notification. Run `decapod report --since 7d` for one on demand.
 
 ## `[[mcp.servers]]`
 

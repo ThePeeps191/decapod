@@ -69,11 +69,11 @@ def format_duration(delta: timedelta | float) -> str:
     hours, rem = divmod(rem, 3600)
     minutes, secs = divmod(rem, 60)
     if days:
-        out = f"{days}d {hours:02d}h"
+        out = f"{days}d {hours:02d}h" if hours else f"{days}d"
     elif hours:
-        out = f"{hours}h {minutes:02d}m"
+        out = f"{hours}h {minutes:02d}m" if minutes else f"{hours}h"
     elif minutes:
-        out = f"{minutes}m {secs:02d}s"
+        out = f"{minutes}m {secs:02d}s" if secs else f"{minutes}m"
     else:
         out = f"{secs}s"
     return f"-{out}" if negative else out
