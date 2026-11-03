@@ -1,0 +1,11 @@
+{#- version: 1 · round 1: PROPOSE -#}
+{{ situation }}
+
+# Available tools
+{{ catalog }}
+You may also propose {"tool": "wait", "wait_minutes": N} when waiting is the best move.
+
+# Task
+Propose up to {{ max_proposals }} candidate actions for THIS cycle, from your perspective as {{ role_title }}. Each proposal is exactly one tool call with complete, valid arguments (use the argument names shown above). Link it to the goal/task it advances (goal_id, task_id) when there is one.
+Write a crisp rationale and the concrete expected outcome. Set confidence (0–1) honestly.
+{% if focus_hint %}Hint: {{ focus_hint }}{% endif %}

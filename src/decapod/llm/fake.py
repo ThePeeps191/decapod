@@ -18,6 +18,8 @@ Script = str | dict[str, Any] | list[Any] | Responder | ProviderError
 class ScriptedProvider:
     """Answers by ``purpose`` glob. Each rule is a fixed reply, a callable or a queue.
 
+    A queue replies with its items in order and then keeps repeating the last one.
+
     >>> p = ScriptedProvider({"caucus.propose.*": {"proposals": []}})
     """
 
@@ -29,7 +31,9 @@ class ScriptedProvider:
         self.rules: list[tuple[str, list[Script], bool]] = []
         self.default = default
         self.calls: list[ProviderRequest] = []
-        for pattern, script in (rules or {}).items():
+        # Constructor rules match in the order given (put specific patterns first);
+        # rules added later with ``add()`` take precedence over all earlier ones.
+        for pattern, script in reversed(list((rules or {}).items())):
             self.add(pattern, script)
 
     def add(
