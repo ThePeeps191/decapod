@@ -697,6 +697,78 @@ def cmd_eval(args: argparse.Namespace) -> int:
     return 0 if passed == total else 1
 
 
+def cmd_report(args: argparse.Namespace) -> int:
+    from rich.markdown import Markdown
+
+    from decapod.report import build_report, save_report
+    from decapod.util.timeutil import parse_duration
+
+    config = _load(args)
+    db = _db(args)
+    try:
+        report = build_report(db, config.charter, parse_duration(args.since))
+    finally:
+        db.close()
+    if args.raw:
+        console.print(report.markdown, markup=False, highlight=False)
+    else:
+        console.print(Markdown(report.markdown))
+    if args.save:
+        path = save_report(report, config.paths.drive)
+        console.print(f"\nSaved to {path}")
+    return 0
+
+
+def cmd_notify(args: argparse.Namespace) -> int:
+    import httpx
+
+    from decapod.notify import Message, Notifier
+
+    config = _load(args)
+    if not config.settings.notify.targets:
+        err.print(
+            "[yellow]No notification targets configured.[/] Add them to decapod.toml:\n"
+            '  [notify]\n  targets = ["ntfy:your-private-topic"]'
+        )
+        return 1
+    text = " ".join(args.message) or "Test notification from Decapod."
+
+    async def go() -> list[str]:
+        async with httpx.AsyncClient() as http:
+            notifier = Notifier(config.settings.notify, config.secrets, http, config.charter.name)
+            return await notifier.send(
+                Message(f"{config.charter.name}: message", text, "cli.notify")
+            )
+
+    errors = asyncio.run(go())
+    for error in errors:
+        err.print(f"[red]✗[/] {escape(error)}")
+    sent = len(config.settings.notify.targets) - len(errors)
+    console.print(f"Sent to {sent}/{len(config.settings.notify.targets)} target(s).")
+    return 0 if not errors else 1
+
+
+def cmd_web(args: argparse.Namespace) -> int:
+    paths = _require_instance(args)
+    try:
+        from textual_serve.server import Server
+    except ImportError:
+        err.print(
+            "[red]The web dashboard needs textual-serve:[/] " + escape("pip install 'decapod[web]'")
+        )
+        return 1
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        err.print(
+            f"[bold yellow]Warning:[/] serving on {args.host} exposes the dashboard, "
+            "including its KILL and approval buttons, to your network with no "
+            "password. Prefer an SSH tunnel."
+        )
+    command = f'"{sys.executable}" -m decapod --dir "{paths.root}" tui'
+    console.print(f"Decapod dashboard on http://{args.host}:{args.port}  (Ctrl+C to stop)")
+    Server(command, host=args.host, port=args.port, title="Decapod").serve()
+    return 0
+
+
 def cmd_charters(args: argparse.Namespace) -> int:
     from decapod.cli.setup import charter_summary, example_charters
 
@@ -821,6 +893,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="run each scenario at L1 and L3 to compare cost and outcome",
     )
     add("charters", cmd_charters, "list bundled example charters")
+    p = add("report", cmd_report, "progress report for a period (no model calls)")
+    p.add_argument("--since", default="7d", help="period, e.g. 24h, 7d (default 7d)")
+    p.add_argument("--save", action="store_true", help="also save it to drive/reports/")
+    p.add_argument("--raw", action="store_true", help="print plain Markdown")
+    p = add("notify", cmd_notify, "send a test notification to your configured targets")
+    p.add_argument("message", nargs="*")
+    p = add("web", cmd_web, "serve the monitor in your browser (needs decapod[web])")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8000)
     return parser
 
 

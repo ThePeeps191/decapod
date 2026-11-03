@@ -159,3 +159,27 @@ def test_init_name_is_escaped(home):
     config = InstanceConfig.load(home)
     assert config.charter.name == 'Bob "the" bot\\'
     assert config.settings.instance.name == 'Bob "the" bot\\'
+
+
+def test_report_notify_web_commands(home, capsys, monkeypatch):
+    assert main(["init", "--yes", "--charter", "minimal"]) == 0
+    toml = home / "decapod.toml"
+    toml.write_text(toml.read_text().replace('min_interval = "30s"', 'min_interval = "0s"'))
+    assert main(["run", "--offline", "--cycles", "1", "--quiet"]) == 0
+    assert main(["report", "--since", "1d", "--save", "--raw"]) == 0
+    out = capsys.readouterr().out
+    assert "progress report" in out and list((home / "drive" / "reports").glob("*.md"))
+    assert main(["notify", "hello"]) == 1  # no targets configured
+    assert "No notification targets" in capsys.readouterr().err
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *a, **k):
+        if name.startswith("textual_serve"):
+            raise ImportError(name)
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    assert main(["web"]) == 1
+    assert "decapod[web]" in capsys.readouterr().err

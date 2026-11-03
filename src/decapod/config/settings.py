@@ -361,6 +361,40 @@ class MCPSettings(_Section):
     servers: list[MCPServerSettings] = Field(default_factory=list)
 
 
+class NotifySettings(_Section):
+    """Push notifications to your phone or chat."""
+
+    #: ntfy ("ntfy:my-topic" or an https://ntfy.sh/... URL), Slack or Discord webhook URLs,
+    #: or any URL that accepts a JSON POST. ${VAR} is replaced from your .env secrets.
+    targets: list[str] = Field(default_factory=list)
+    #: Event kinds (globs) that trigger a notification.
+    events: list[str] = Field(
+        default_factory=lambda: [
+            "approval.requested",
+            "daemon.stop",
+            "budget.exhausted",
+            "control.trip",
+            "cycle.error",
+            "report.created",
+            "agenda.goal_reopened",
+        ]
+    )
+    #: Do not repeat the same kind of notification more often than this (approvals exempt).
+    min_interval: timedelta = timedelta(minutes=1)
+
+    _v = field_validator("min_interval", mode="before")(_duration)
+
+
+class ReportSettings(_Section):
+    #: Write a progress report to drive/reports/ this often (e.g. "7d"); None = never.
+    every: timedelta | None = None
+
+    @field_validator("every", mode="before")
+    @classmethod
+    def _every(cls, value: Any) -> Any:
+        return None if value in (None, "", 0) else _duration(value)
+
+
 class Settings(_Section):
     instance: InstanceSettings = Field(default_factory=InstanceSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
@@ -371,6 +405,8 @@ class Settings(_Section):
     memory: MemorySettings = Field(default_factory=MemorySettings)
     tools: ToolSettings = Field(default_factory=ToolSettings)
     mcp: MCPSettings = Field(default_factory=MCPSettings)
+    notify: NotifySettings = Field(default_factory=NotifySettings)
+    report: ReportSettings = Field(default_factory=ReportSettings)
 
 
 # --------------------------------------------------------------------------- loading
