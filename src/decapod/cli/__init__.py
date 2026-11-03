@@ -100,7 +100,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     from decapod.config.providers import resolve_routes
     from decapod.config.secrets import user_env_file
     from decapod.tools import ToolRegistry, builtin_tools
-    from decapod.tools.sandbox import bwrap_path
+    from decapod.tools.sandbox import bwrap_path, bwrap_works
 
     config = _load(args)
     ok = True
@@ -152,12 +152,20 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         by_reason.setdefault(reason, []).append(name)
     for reason, names in by_reason.items():
         check(", ".join(names), False, reason, warn=True)
-    check(
-        "bubblewrap sandbox",
-        bwrap_path() is not None,
-        bwrap_path() or "not installed: code.run stays disabled unless isolation = 'none'",
-        warn=True,
-    )
+    if bwrap_works():
+        check("bubblewrap sandbox", True, bwrap_path() or "")
+    else:
+        detail = (
+            "installed but unusable (user namespaces disabled?)"
+            if bwrap_path()
+            else "not installed"
+        )
+        check(
+            "bubblewrap sandbox",
+            False,
+            f"{detail}: code.run stays disabled unless isolation = 'none'",
+            warn=True,
+        )
     from decapod.daemon import running_pid
 
     pid = running_pid(config.paths.pidfile)

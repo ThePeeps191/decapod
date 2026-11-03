@@ -33,10 +33,10 @@ async def run(registry, ctx, tool, **args):
 
 
 def test_registry_availability_and_catalog(registry, charter):
-    from decapod.tools.sandbox import bwrap_path
+    from decapod.tools.sandbox import bwrap_works
 
     # code.run is only offered when bubblewrap can isolate it (isolation = "auto")
-    assert ("code.run" in registry.unavailable) == (bwrap_path() is None)
+    assert ("code.run" in registry.unavailable) == (not bwrap_works())
     assert "email.send" in registry.unavailable
     catalog = registry.catalog(granted=lambda s: s in ("drive.read", "web.read"))
     assert "drive.read" in catalog and "drive.write(" not in catalog

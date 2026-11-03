@@ -30,7 +30,7 @@ class CodeRun(Tool):
     def unavailable_reason(self, settings: Settings, secrets: Secrets) -> str | None:
         if effective_isolation(settings.tools.code.isolation) is None:
             return (
-                "bubblewrap (bwrap) is not installed; install it or set "
+                "bubblewrap (bwrap) is not installed or not usable here; install it or set "
                 'tools.code.isolation = "none" to allow unisolated execution'
             )
         return None

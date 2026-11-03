@@ -15,9 +15,11 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from decapod.tools.base import ProcessRegistry
@@ -38,11 +40,29 @@ def bwrap_path() -> str | None:
     return shutil.which("bwrap")
 
 
+@lru_cache(maxsize=1)
+def bwrap_works() -> bool:
+    """bubblewrap can be installed but unusable (e.g. user namespaces disabled): probe it."""
+    path = bwrap_path()
+    if path is None:
+        return False
+    try:
+        probe = subprocess.run(
+            [path, "--ro-bind", "/", "/", "--unshare-all", "--die-with-parent", "true"],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return probe.returncode == 0
+
+
 def effective_isolation(requested: str) -> str | None:
     """Resolve the isolation level, or None if the request cannot be satisfied."""
     if requested == "none":
         return "none"
-    if bwrap_path():
+    if bwrap_works():
         return "bwrap"
     return None
 
