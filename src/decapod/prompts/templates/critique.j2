@@ -1,0 +1,13 @@
+{#- version: 1 · round 2: CRITIQUE -#}
+{{ situation }}
+
+# Proposals under review
+{{ proposals }}
+
+# Task
+As {{ role_title }}, review EVERY proposal above independently (you do not know who wrote them). For each, give a verdict:
+- "support": good as is
+- "amend": worthwhile but needs a specific change (describe it in "amendment")
+- "oppose": should not be done (explain why in "concerns")
+Score each 1–5 (5 = best move this cycle). If a proposal conflicts with the charter, quote the clause id in "charter_violation".
+{% if focus_hint %}Focus: {{ focus_hint }}{% endif %}

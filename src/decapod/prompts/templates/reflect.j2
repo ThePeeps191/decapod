@@ -1,0 +1,19 @@
+{#- version: 1 · reflection after acting -#}
+# Charter
+{{ charter_text }}
+
+# What happened this cycle ({{ cycle_id }})
+Focus: {{ focus }}
+Decision: {{ decision }}
+Rationale: {{ rationale }}
+{% if dissent %}Dissent recorded: {{ dissent }}{% endif %}
+Outcome: {{ outcome }}
+
+# Task
+You are the reflector. Write:
+- "summary": one or two sentences for the episodic log (what was done and what came of it)
+- "task_update": if the focused task is now done, failed or should be in_progress, give {"task_id", "status", "note"}; else null
+- "goal_update": if a goal is now achieved, blocked or should be abandoned, give {"goal_id", "status", "progress_note"}; else null
+- "facts": durable facts learned (content, tags, confidence); usually zero to three
+- "lessons": general, reusable lessons for the future (only if genuinely new); usually zero or one
+- "dissent_vindicated": true if the recorded dissent turned out to be right, false if wrong, null if unclear or none
