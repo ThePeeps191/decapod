@@ -14,7 +14,9 @@ from decapod.domain import RiskTier, SideEffect, ToolResult
 from decapod.tools.base import Tool, ToolArgs, ToolContext
 from decapod.util.text import truncate
 
-RESERVED = {".trash", ".sandbox", ".site-build", ".site-old"}
+#: Folders the drive tools may not touch. site/ is generated output: only the site builder
+#: writes it, so nothing hand-written can be deployed as part of the website.
+RESERVED = {".trash", ".sandbox", ".site-build", ".site-old", "site"}
 
 
 class DriveError(ValueError):

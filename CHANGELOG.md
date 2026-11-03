@@ -19,7 +19,16 @@
   - `decapod report --since 7d` builds one on demand.
   - `[report] every` makes the daemon write one on a schedule.
   - Reports use no model calls.
-- **`decapod web`** serves the monitor in a browser (`decapod[web]`).
+- **`decapod web`** serves the monitor in a browser (`decapod[web]`). It is protected by a per-launch token plus Host and Origin checks.
+- **Hardening from review**:
+  - The browser runs behind an IP-pinning filtering proxy, so redirects, WebSockets and DNS rebinding can't reach private hosts.
+  - `site.deploy` rebuilds first, ships only generated files, finds escaped secrets and deletes stale pages.
+  - Note slugs are sanitized.
+  - Reopened recurring goals get a fresh plan.
+  - Recurrence is bounded between hourly and yearly.
+  - Basic ISO dates parse as dates.
+  - ntfy titles support Unicode.
+  - Reports count real completions only.
 
 ## 1.0.0
 

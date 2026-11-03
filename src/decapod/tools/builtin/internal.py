@@ -9,7 +9,7 @@ from pydantic import Field
 
 from decapod.domain import GoalStatus, MemoryKind, TaskStatus, ToolResult
 from decapod.memory import AgendaError, TaskDraft
-from decapod.memory.agenda import schedule_text
+from decapod.memory.agenda import check_recurrence, schedule_text
 from decapod.tools.base import NoArgs, Tool, ToolArgs, ToolContext
 from decapod.util.text import one_line
 from decapod.util.timeutil import format_duration, now, parse_duration, parse_when, to_iso
@@ -56,8 +56,11 @@ class AddGoal(Tool):
             interval, _ = _schedule(args.every, args.due)
         except ValueError as exc:
             return str(exc)
-        if interval is not None and interval.total_seconds() < 3600:
-            return "a recurring goal may repeat at most once an hour"
+        if interval is not None:
+            try:
+                check_recurrence(interval)
+            except AgendaError as exc:
+                return str(exc)
         return None
 
     async def run(self, args: AddGoalArgs, ctx: ToolContext) -> ToolResult:
@@ -100,8 +103,11 @@ class UpdateGoal(Tool):
             interval, _ = _schedule(args.every, args.due)
         except ValueError as exc:
             return str(exc)
-        if interval is not None and interval.total_seconds() < 3600:
-            return "a recurring goal may repeat at most once an hour"
+        if interval is not None:
+            try:
+                check_recurrence(interval)
+            except AgendaError as exc:
+                return str(exc)
         return None
 
     async def run(self, args: UpdateGoalArgs, ctx: ToolContext) -> ToolResult:

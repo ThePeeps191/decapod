@@ -52,7 +52,15 @@ def build_report(db: Database, charter: Charter, since: timedelta) -> Report:
         ]
 
     goals_added = events("agenda.goal_added")
-    goals_done = [s for s in events("agenda.goal_updated") if " done:" in s]
+    goals_done = [
+        r["summary"]
+        for r in db.query(
+            "SELECT summary, payload FROM events WHERE kind = 'agenda.goal_updated' AND ts >= ? "
+            "ORDER BY id",
+            (lo,),
+        )
+        if (loads(r["payload"], {}) or {}).get("completed")
+    ]
     approvals = Counter(
         r["status"] for r in db.query("SELECT status FROM approvals WHERE created_at >= ?", (lo,))
     )

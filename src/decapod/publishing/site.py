@@ -20,7 +20,9 @@ from xml.sax.saxutils import escape as xml_escape
 from markdown_it import MarkdownIt
 
 _FRONT_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
-_md = MarkdownIt("commonmark", {"html": False, "linkify": False, "typographer": True}).enable(
+# No typographer: output must stay a plain transformation of the source, so the deploy-time
+# secret scan can recognise anything that came from a note.
+_md = MarkdownIt("commonmark", {"html": False, "linkify": False, "typographer": False}).enable(
     "table"
 )
 
@@ -89,6 +91,12 @@ class SiteResult:
     files: list[str] = field(default_factory=list)
 
 
+def slugify(text: str, max_len: int = 80) -> str:
+    """URL- and HTML-safe file stem (the filename is agent-controlled)."""
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug[:max_len].rstrip("-") or "note"
+
+
 def _value(raw: str) -> str:
     raw = raw.strip()
     if raw[:1] in ("'", '"'):
@@ -118,7 +126,7 @@ def parse_note(path: Path) -> Note:
     if lines and lines[0].lstrip("# ").strip() == title.strip():
         body = "\n".join(lines[1:])
     return Note(
-        slug=path.stem,
+        slug=slugify(path.stem),
         title=title,
         date=_value(meta.get("date", "")) or path.stem[:10],
         tags=tags,
@@ -170,6 +178,12 @@ def build_site(
         if source.exists()
         else []
     )
+    seen: dict[str, int] = {}
+    for note in notes:  # distinct filenames can slugify alike
+        count = seen.get(note.slug, 0)
+        seen[note.slug] = count + 1
+        if count:
+            note.slug = f"{note.slug}-{count + 1}"
     notes.sort(key=lambda n: (n.date, n.slug), reverse=True)
     footer = (
         f"Written autonomously by {html.escape(author)}, an AI agent built on "

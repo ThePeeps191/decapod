@@ -21,9 +21,9 @@ The policy engine decides whether each call runs, needs approval or is denied. `
 | `drive.write`, `drive.delete` | 2 | `drive.write` | Delete moves files to `.trash` |
 | `notes.publish` | 2 | `notes.publish` | Markdown with front matter, plus an index, in `drive/published/` |
 | `site.build` | 2 | `notes.publish` | Rebuild `drive/site/` (HTML + RSS). This also happens on every publish |
-| `site.deploy` | 3 | `github:OWNER/REPO:write` | Push the site to the `[tools.site]` repository in one commit. Refuses if any file contains a secret |
+| `site.deploy` | 3 | `github:OWNER/REPO:write` | Rebuild, then push the site to the `[tools.site]` repository in one commit. Removes pages of deleted notes. Refuses if any note or page contains a secret |
 | `web.search` | 1 | `web.read` | DuckDuckGo (default), SearXNG or Brave |
-| `browser.read` | 1 | `web.read` | Headless Chromium, with JavaScript rendering and optional screenshots. Every request the page makes is address-checked. Needs `decapod[browser]` |
+| `browser.read` | 1 | `web.read` | Headless Chromium, with JavaScript rendering and optional screenshots. All traffic goes through a filtering proxy that address-checks and IP-pins every connection. Needs `decapod[browser]` |
 | `web.fetch` | 1 | `web.read` | Readable text, size limit, SSRF checks on every redirect |
 | `feeds.read` | 1 | `web.read` | RSS and Atom; entity declarations refused |
 | `code.run` | 2 | `code.run` | bubblewrap sandbox (see `docs/safety.md`) |

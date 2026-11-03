@@ -58,15 +58,15 @@ async def test_browser_renders_javascript(settings, make_ctx, monkeypatch):
     port = server.server_address[1]
     from decapod.tools.builtin import web
 
-    real_check = web.check_url
+    real_allowed = web.address_allowed
 
-    async def check(url, *, allow_private):
+    def allowed(host, port, address, *, allow_private):
         # The test server is on localhost: allow exactly it, keep blocking everything else.
-        if url.startswith(f"http://127.0.0.1:{port}/"):
-            return None
-        return await real_check(url, allow_private=False)
+        if address == "127.0.0.1" and port == server.server_address[1]:
+            return True
+        return real_allowed(host, port, address, allow_private=False)
 
-    monkeypatch.setattr(web, "check_url", check)
+    monkeypatch.setattr(web, "address_allowed", allowed)
     settings.tools.browser.executable_path = chromium_path()
     registry = ToolRegistry(settings, Secrets({}))
     registry.register(BrowserRead())
@@ -87,3 +87,80 @@ async def test_browser_renders_javascript(settings, make_ctx, monkeypatch):
     assert "rendered by javascript" in res.output and "Title: JS page" in res.output
     assert "non-public addresses were blocked" in res.output
     assert (ctx.paths.drive / res.data["screenshot"]).exists()
+
+
+@pytest.mark.skipif(not playwright_available(), reason="playwright not installed")
+async def test_browser_blocks_redirects_and_websockets_to_private_hosts(
+    settings, make_ctx, monkeypatch
+):
+    """Redirect hops and WebSockets must hit the same address policy (review finding)."""
+    internal_hits = []
+
+    class Internal(BaseHTTPRequestHandler):
+        def do_GET(self):
+            internal_hits.append((self.path, self.headers.get("Upgrade")))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<html><body>INTERNAL-SECRET</body></html>")
+
+        def log_message(self, *args):
+            pass
+
+    internal = ThreadingHTTPServer(("127.0.0.1", 0), Internal)
+    threading.Thread(target=internal.serve_forever, daemon=True).start()
+    secret_port = internal.server_address[1]
+
+    class Public(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/redir":
+                self.send_response(302)
+                self.send_header("Location", f"http://127.0.0.1:{secret_port}/meta")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(
+                f"<html><body>public<script>try {{ new WebSocket("
+                f"'ws://127.0.0.1:{secret_port}/ws'); }} catch (e) {{}}</script>"
+                f"</body></html>".encode()
+            )
+
+        def log_message(self, *args):
+            pass
+
+    public = ThreadingHTTPServer(("127.0.0.1", 0), Public)
+    threading.Thread(target=public.serve_forever, daemon=True).start()
+    public_port = public.server_address[1]
+    from decapod.tools.builtin import web
+
+    def allowed(host, port, address, *, allow_private):
+        return port == public_port  # only the "public" server counts as public
+
+    monkeypatch.setattr(web, "address_allowed", allowed)
+    settings.tools.browser.executable_path = chromium_path()
+    registry = ToolRegistry(settings, Secrets({}))
+    registry.register(BrowserRead())
+    executor = ToolExecutor(registry)
+    try:
+        redirect = await executor.execute(
+            ActionSpec(tool="browser.read", args={"url": f"http://127.0.0.1:{public_port}/redir"}),
+            make_ctx(),
+        )
+        page = await executor.execute(
+            ActionSpec(
+                tool="browser.read",
+                args={"url": f"http://127.0.0.1:{public_port}/page", "wait_ms": 800},
+            ),
+            make_ctx(),
+        )
+    finally:
+        public.shutdown()
+        internal.shutdown()
+    if not page.ok and "browser error" in (page.error or ""):
+        pytest.skip(f"no usable Chromium here: {page.error}")
+    assert "INTERNAL-SECRET" not in (redirect.output or "")
+    assert not redirect.ok or "INTERNAL" not in redirect.output
+    assert page.ok and "public" in page.output
+    assert internal_hits == []

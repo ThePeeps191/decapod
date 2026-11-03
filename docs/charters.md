@@ -73,7 +73,7 @@ Granting a scope does not mean it can act freely. Risk-tier policy still applies
 
 Optional. They are added once, to an empty agenda, on the first start. After that the agenda belongs to Decapod.
 
-A seed goal with `every` (at most hourly) recurs. Each time Decapod marks it done, the next occurrence is scheduled; when it comes due, the goal reopens with a fresh plan.
+A seed goal with `every` (between hourly and yearly) recurs. Each time Decapod marks it done, the next occurrence is scheduled; when it comes due, the goal reopens with a fresh plan.
 
 ## Examples
 

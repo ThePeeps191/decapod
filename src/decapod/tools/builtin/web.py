@@ -41,18 +41,39 @@ async def check_url(url: str, *, allow_private: bool) -> None:
         raise BlockedAddress("URL has no host")
     if allow_private:
         return
-    if host.lower() in ("localhost", "localhost.localdomain") or host.lower().endswith(".local"):
+    default_port = 443 if parsed.scheme == "https" else 80
+    await resolve_allowed(host, parsed.port or default_port, allow_private=False)
+
+
+def address_allowed(host: str, port: int, address: str, *, allow_private: bool) -> bool:
+    """The single policy for outbound connections (tests may substitute it)."""
+    if allow_private:
+        return True
+    return is_public(ipaddress.ip_address(address))
+
+
+async def resolve_allowed(host: str, port: int, *, allow_private: bool) -> list[str]:
+    """Resolve ``host`` once and return its addresses, refusing if any is not allowed.
+
+    Callers that then connect to one of the returned addresses (instead of resolving the
+    name again) are immune to DNS rebinding.
+    """
+    lowered = host.lower().strip("[]")
+    if not allow_private and (
+        lowered in ("localhost", "localhost.localdomain") or lowered.endswith(".local")
+    ):
         raise BlockedAddress("local hosts are blocked")
     try:
-        infos = await asyncio.get_running_loop().getaddrinfo(
-            host, parsed.port or 443, type=socket.SOCK_STREAM
-        )
+        infos = await asyncio.get_running_loop().getaddrinfo(lowered, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
         raise BlockedAddress(f"cannot resolve {host}: {exc}") from None
-    for info in infos:
-        address = ipaddress.ip_address(info[4][0])
-        if not is_public(address):
+    addresses = list(dict.fromkeys(str(info[4][0]) for info in infos))
+    for address in addresses:
+        if not address_allowed(lowered, port, address, allow_private=allow_private):
             raise BlockedAddress(f"{host} resolves to a non-public address ({address})")
+    if not addresses:
+        raise BlockedAddress(f"cannot resolve {host}")
+    return addresses
 
 
 def is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
@@ -94,7 +115,13 @@ async def fetch(ctx: ToolContext, url: str, *, accept: str = "*/*") -> httpx.Res
                 # Re-check the address actually connected to: closes DNS-rebinding gaps
                 # between the check above and httpx's own resolution.
                 peer = _peer_address(response)
-                if peer is not None and not is_public(ipaddress.ip_address(peer)):
+                parsed_current = urlparse(current)
+                if peer is not None and not address_allowed(
+                    parsed_current.hostname or "",
+                    parsed_current.port or 0,
+                    peer,
+                    allow_private=False,
+                ):
                     raise BlockedAddress(f"connected to a non-public address ({peer})")
             if response.is_redirect and "location" in response.headers:
                 current = str(response.url.join(response.headers["location"]))

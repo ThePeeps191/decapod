@@ -84,14 +84,15 @@ def parse_when(value: str, reference: datetime | None = None) -> datetime:
     from now ("3d", "12h"). Naive times are taken as UTC."""
     text = value.strip()
     base = reference or now()
-    try:
-        return base + parse_duration(text)
-    except ValueError:
-        pass
-    try:
+    try:  # ISO first: "20261201" is a date, not 20 million seconds
         moment = datetime.fromisoformat(text)
     except ValueError:
+        moment = None
+    if moment is not None and (len(text) >= 8 or not text.isdigit()):
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        return moment
+    try:
+        return base + parse_duration(text)
+    except (ValueError, OverflowError):
         raise ValueError(f"not a date, datetime or duration: {value!r}") from None
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=UTC)
-    return moment

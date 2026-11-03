@@ -73,13 +73,10 @@ def request_for(target: str, message: Message) -> tuple[str, dict[str, Any]]:
         target = "https://ntfy.sh/" + target[5:].lstrip("/")
     host = (urlparse(target).hostname or "").lower()
     if "ntfy" in host:
+        # Title etc. go in query parameters: HTTP headers cannot carry non-ASCII text.
         return target, {
             "content": message.body.encode("utf-8"),
-            "headers": {
-                "Title": message.title.encode("utf-8").decode("latin-1", "ignore"),
-                "Priority": message.priority,
-                "Tags": "crab",
-            },
+            "params": {"title": message.title, "priority": message.priority, "tags": "crab"},
         }
     if host == "hooks.slack.com":
         return target, {"json": {"text": f"*{message.title}*\n{message.body}"}}

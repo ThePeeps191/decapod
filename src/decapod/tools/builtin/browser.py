@@ -1,8 +1,10 @@
 """browser.read: render a page in headless Chromium (optional Playwright dependency).
 
-Every request the page makes (documents, scripts, images, XHR, redirects) goes through the
-same address check as web.fetch, so a page cannot pivot the browser into the local network.
-Downloads, service workers and permission prompts are disabled.
+All browser traffic is forced through a local filtering proxy (see browser_proxy): every
+connection, including redirect hops, sub-resources, XHR/fetch and WebSockets, is resolved
+once, checked against the same address policy as web.fetch and pinned to the vetted IP, so
+a page cannot pivot the browser into the local network or rebind DNS. Downloads and service
+workers are disabled.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from decapod.config import Secrets, Settings
 from decapod.domain import RiskTier, SideEffect, ToolResult
 from decapod.tools.base import Tool, ToolArgs, ToolContext
 from decapod.tools.builtin import web as web_mod
+from decapod.tools.builtin.browser_proxy import FilteringProxy, chromium_proxy_args
 from decapod.util.text import truncate
 
 
@@ -80,10 +83,14 @@ class BrowserRead(Tool):
             await route.continue_()
 
         timeout_ms = cfg.timeout.total_seconds() * 1000
+        proxy = FilteringProxy(allow_private=allow_private)
+        proxy_port = await proxy.start()
         try:
             async with async_playwright() as playwright:
                 browser = await playwright.chromium.launch(
-                    executable_path=cfg.executable_path or None, headless=True
+                    executable_path=cfg.executable_path or None,
+                    headless=True,
+                    args=chromium_proxy_args(proxy_port),
                 )
                 try:
                     context = await browser.new_context(
@@ -121,6 +128,9 @@ class BrowserRead(Tool):
                     "chromium` or set [tools.browser] executable_path"
                 )
             return ToolResult.failure(f"browser error: {message}")
+        finally:
+            await proxy.close()
+        blocked += [b for b in proxy.blocked if b not in blocked]
         status = response.status if response is not None else None
         if status is not None and status >= 400:
             return ToolResult.failure(f"HTTP {status} for {final_url}")

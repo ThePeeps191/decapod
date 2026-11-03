@@ -77,8 +77,9 @@ class SeedGoal(_Section):
         if value is not None:
             from decapod.util.timeutil import parse_duration
 
-            if parse_duration(value).total_seconds() < 3600:
-                raise ValueError("a recurring goal may repeat at most once an hour")
+            seconds = parse_duration(value).total_seconds()
+            if seconds < 3600 or seconds > 366 * 86400:
+                raise ValueError("a recurring goal must repeat between hourly and yearly")
         return value
 
 

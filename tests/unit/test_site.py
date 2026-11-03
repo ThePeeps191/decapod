@@ -90,6 +90,17 @@ async def test_site_deploy_single_commit(make_ctx, settings, charter):
             return httpx.Response(200, json={"object": {"sha": "parent1"}})
         if path.endswith("/git/commits/parent1"):
             return httpx.Response(200, json={"tree": {"sha": "tree0"}})
+        if path.endswith("/git/trees/tree0"):
+            return httpx.Response(
+                200,
+                json={
+                    "tree": [
+                        {"path": "docs/posts/old-note.html", "type": "blob", "sha": "x"},
+                        {"path": "docs/CNAME", "type": "blob", "sha": "y"},
+                        {"path": "posts/outside-prefix.html", "type": "blob", "sha": "z"},
+                    ]
+                },
+            )
         if path.endswith("/git/blobs"):
             return httpx.Response(201, json={"sha": f"blob{len(calls)}"})
         if path.endswith("/git/trees"):
@@ -107,10 +118,9 @@ async def test_site_deploy_single_commit(make_ctx, settings, charter):
     ctx = make_ctx(handler, secrets=secrets)
     action = ActionSpec(tool="site.deploy", args={})
     _, check = registry.check(action, ctx)
-    assert "not been built" in check.args_error
+    assert "nothing to deploy" in check.args_error
     assert check.scopes == ["github:me/notes:write"]  # granted by the test charter
     write_note(ctx.paths.drive / "published", "2026-01-01-a.md", "A", "body")
-    build_site(ctx.paths.drive, title="T", description="d", author="a")
     _, check = registry.check(action, ctx)
     assert check.args_error is None
     res = await ToolExecutor(registry).execute(action, ctx)
@@ -118,6 +128,9 @@ async def test_site_deploy_single_commit(make_ctx, settings, charter):
     tree = next(body for method, path, body in calls if path.endswith("/git/trees"))
     assert tree["base_tree"] == "tree0"
     assert {e["path"] for e in tree["tree"]} >= {"docs/index.html", "docs/feed.xml"}
+    deleted = {e["path"] for e in tree["tree"] if e["sha"] is None}
+    assert deleted == {"docs/posts/old-note.html"}  # stale page removed, CNAME kept
+    assert "removed 1 stale" in res.output
     commit = next(
         body for method, path, body in calls if path.endswith("/git/commits") and method == "POST"
     )
@@ -137,3 +150,35 @@ async def test_site_deploy_refuses_secrets(make_ctx, settings):
     build_site(ctx.paths.drive, title="T", description="d", author="a")
     res = await ToolExecutor(registry).execute(ActionSpec(tool="site.deploy", args={}), ctx)
     assert not res.ok and "secret" in res.error
+
+
+def test_secret_variants_cover_escaping():
+    from decapod.tools.builtin.site import secret_variants
+
+    variants = secret_variants('Pa55&word"<x>')
+    assert "Pa55&amp;word&quot;&lt;x&gt;" in variants
+    assert "Pa55&amp;amp;word&amp;quot;&amp;lt;x&amp;gt;" in variants
+
+
+def test_filenames_cannot_inject_html(tmp_path):
+    drive = tmp_path / "drive"
+    write_note(drive / "published", 'x"><img src=x onerror=alert(1)>.md', "Evil", "body")
+    result = build_site(drive, title="T", description="d", author="a")
+    index = (drive / "site" / "index.html").read_text(encoding="utf-8")
+    assert "onerror=" not in index and "<img" not in index  # only escaped or slug text
+    assert result.notes[0].slug == "x-img-src-x-onerror-alert-1"
+    assert (drive / "site" / "posts" / f"{result.notes[0].slug}.html").exists()
+
+
+async def test_drive_tools_cannot_write_the_site(make_ctx, settings):
+    registry = ToolRegistry(settings, Secrets({}))
+    for tool in builtin_tools():
+        registry.register(tool)
+    ctx = make_ctx()
+    res = await ToolExecutor(registry).execute(
+        ActionSpec(
+            tool="drive.write", args={"path": "site/x.html", "content": "<script>alert(1)</script>"}
+        ),
+        ctx,
+    )
+    assert not res.ok and "reserved" in res.error

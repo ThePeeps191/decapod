@@ -166,7 +166,7 @@ See `decapod charters` for the examples (researcher, writer, maintainer, minimal
 | `decapod eval [--real] [--compare-levels]` | Scenario evals with the scripted brain or your models |
 | `decapod report --since 7d` | Progress report: cycles, spend, goals, notes, lessons (no model calls) |
 | `decapod notify "…"` | Send a test notification to your configured targets |
-| `decapod web` | The monitor in your browser (`pip install 'decapod[web]'`) |
+| `decapod web` | The monitor in your browser (`pip install 'decapod[web]'`). Open the printed URL, which contains a one-time token |
 | `decapod amendments` | Charter changes it has proposed |
 | `decapod ask "…" --tier PRO` | One-off model call, for debugging |
 

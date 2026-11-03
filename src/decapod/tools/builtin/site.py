@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import base64
+import html
 from typing import Any
+from xml.sax.saxutils import escape as xml_escape
 
 from pydantic import Field
 
@@ -71,21 +73,22 @@ class SiteDeploy(_GitHubTool):
         return super().unavailable_reason(settings, secrets)
 
     def precheck(self, args: DeployArgs, ctx: ToolContext) -> str | None:
-        if not (ctx.paths.drive / "site" / "index.html").exists():
-            return "the site has not been built yet: publish a note or run site.build first"
+        published = ctx.paths.drive / "published"
+        if not published.exists() or not any(p.name != "index.md" for p in published.glob("*.md")):
+            return "nothing to deploy: publish a note first"
         return None
 
     async def run(self, args: DeployArgs, ctx: ToolContext) -> ToolResult:
         cfg = ctx.settings.tools.site
         repo = cfg.repo or ""
-        site = ctx.paths.drive / "site"
+        # Always deploy a fresh build, and only the files the builder produced.
+        result = rebuild(ctx)
+        site = result.path
         prefix = safe_path(cfg.path) + "/" if cfg.path.strip("/") else ""
-        files = sorted(p for p in site.rglob("*") if p.is_file())
-        secrets = ctx.secrets.values_for_scrubbing()
-        for file in files:  # never publish a configured secret, wherever it came from
-            text = file.read_text(encoding="utf-8", errors="ignore")
-            if any(secret in text for secret in secrets):
-                return ToolResult.failure(f"refused: {file.name} contains a configured secret")
+        files = [site / rel for rel in result.files]
+        leak = find_secret(ctx, [*sorted((ctx.paths.drive / "published").glob("*.md")), *files])
+        if leak:
+            return ToolResult.failure(f"refused: {leak} contains a configured secret")
 
         branch = cfg.branch
         ref = await self.request(ctx, "GET", f"/repos/{repo}/git/ref/heads/{branch}")
@@ -100,7 +103,7 @@ class SiteDeploy(_GitHubTool):
         elif ref.status_code != 404:
             return _fail(ref)
 
-        entries = []
+        entries: list[dict[str, Any]] = []
         for file in files:
             blob = await self.request(
                 ctx,
@@ -117,6 +120,23 @@ class SiteDeploy(_GitHubTool):
             entries.append(
                 {"path": prefix + rel, "mode": "100644", "type": "blob", "sha": blob.json()["sha"]}
             )
+        if base_tree:
+            # Remove pages of notes that no longer exist (other files, e.g. CNAME, stay).
+            current = {e["path"] for e in entries}
+            old = await self.request(
+                ctx, "GET", f"/repos/{repo}/git/trees/{base_tree}", params={"recursive": "1"}
+            )
+            if old.status_code >= 400:
+                return _fail(old)
+            for item in old.json().get("tree", []):
+                path = item.get("path", "")
+                if (
+                    item.get("type") == "blob"
+                    and path.startswith(prefix + "posts/")
+                    and path.endswith(".html")
+                    and path not in current
+                ):
+                    entries.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
         tree_body: dict[str, Any] = {"tree": entries}
         if base_tree:
             tree_body["base_tree"] = base_tree
@@ -153,10 +173,37 @@ class SiteDeploy(_GitHubTool):
         if update.status_code >= 400:
             return _fail(update)
         url = cfg.base_url or f"https://github.com/{repo}/tree/{branch}"
+        removed = sum(1 for e in entries if e["sha"] is None)
         return ToolResult.success(
-            f"deployed {len(entries)} files to {repo}@{branch}: {url}",
-            {"commit": sha, "files": len(entries)},
+            f"deployed {len(files)} files to {repo}@{branch}"
+            + (f" (removed {removed} stale pages)" if removed else "")
+            + f": {url}",
+            {"commit": sha, "files": len(files), "removed": removed},
         )
+
+
+def secret_variants(secret: str) -> set[str]:
+    """How a secret can appear in generated HTML/XML (escaped once or twice)."""
+    once = html.escape(secret, quote=True)
+    return {
+        secret,
+        once,
+        html.escape(once, quote=True),
+        html.escape(secret, quote=False),
+        xml_escape(secret),
+        xml_escape(once),
+    }
+
+
+def find_secret(ctx: ToolContext, files: list[Any]) -> str | None:
+    variants = {v for s in ctx.secrets.values_for_scrubbing() for v in secret_variants(s)}
+    if not variants:
+        return None
+    for file in files:
+        text = file.read_text(encoding="utf-8", errors="ignore")
+        if any(v in text for v in variants):
+            return str(file.name)
+    return None
 
 
 def _fail(response: Any) -> ToolResult:

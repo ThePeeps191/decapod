@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from decapod.domain import GoalStatus, TaskStatus
+from decapod.domain import GoalStatus
 from decapod.memory import AgendaError, AgendaStore, TaskDraft
 from decapod.memory.agenda import schedule_text
 from decapod.util.timeutil import now, parse_when, to_iso
@@ -35,7 +35,11 @@ def test_recurring_goal_lifecycle(db, events):
     again = agenda.get_goal(goal.id)
     assert again.status is GoalStatus.ACTIVE and again.next_due is None
     assert "occurrence 2" in again.progress_note
-    assert all(t.status is TaskStatus.SKIPPED for t in agenda.current_plan(goal.id))
+    plan = agenda.current_plan(goal.id)
+    assert [t.title for t in plan] == ["Plan occurrence 2"]  # fresh plan, not the old one
+    assert agenda.progress(goal.id) == (0, 1)
+    assert agenda.focus()[1].title == "Plan occurrence 2"
+    assert agenda.reopen_due() == []  # never reopened twice
     assert "agenda.goal_reopened" in [e.kind for e in events.recent(5)]
 
 
@@ -107,3 +111,24 @@ def test_charter_seed_every():
     assert charter.goals.seed[0].every == "7d"
     with pytest.raises(ConfigError):
         parse_charter('[identity]\nmission="m"\n[goals]\nseed=[{title="t", every="1m"}]\n')
+
+
+def test_recurrence_edge_cases(db):
+    agenda = AgendaStore(db)
+    with pytest.raises(AgendaError, match="once a year"):
+        agenda.add_goal("Forever", every=timedelta(days=99999999))
+    goal = agenda.add_goal("Was one-off")
+    agenda.update_goal(goal.id, status="done")
+    made_recurring = agenda.update_goal(goal.id, every=timedelta(days=1))
+    assert made_recurring.next_due is not None  # now actually scheduled
+    weekly = agenda.add_goal("Weekly", every=timedelta(days=7), due_at=now() + timedelta(days=1))
+    new_deadline = now() + timedelta(days=9)
+    done = agenda.update_goal(weekly.id, status="done", due_at=new_deadline)
+    assert done.due_at is not None and abs((done.due_at - new_deadline).total_seconds()) < 1
+
+
+def test_parse_when_prefers_iso_dates():
+    assert parse_when("20261201") == datetime(2026, 12, 1, tzinfo=UTC)
+    assert parse_when("45", datetime(2026, 1, 1, tzinfo=UTC)).second == 45
+    with pytest.raises(ValueError):
+        parse_when("99999999999999d")

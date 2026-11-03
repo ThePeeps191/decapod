@@ -11,7 +11,9 @@ from decapod.notify import Message, Notifier, describe, expand, request_for
 def test_request_formats():
     msg = Message("Pod: hi", "body", "x", "high")
     url, kw = request_for("ntfy:my-topic", msg)
-    assert url == "https://ntfy.sh/my-topic" and kw["headers"]["Priority"] == "high"
+    assert url == "https://ntfy.sh/my-topic" and kw["params"]["priority"] == "high"
+    _, kw = request_for("ntfy:t", Message("Krabbé: approval needed ✓", "b", "x"))
+    assert kw["params"]["title"] == "Krabbé: approval needed ✓"
     url, kw = request_for("https://hooks.slack.com/services/T/B/X", msg)
     assert kw["json"]["text"].startswith("*Pod: hi*")
     url, kw = request_for("https://discord.com/api/webhooks/1/abc", msg)
@@ -107,3 +109,16 @@ async def test_daemon_notifies_and_writes_reports(tmp_path, monkeypatch):
     db.close()
     assert "**Cycles:** 2" in report.markdown and "Agenda now" in report.markdown
     assert "2 cycles" in report.summary
+
+
+async def test_ntfy_with_unicode_title_is_delivered():
+    seen = []
+
+    def handler(request):
+        seen.append(request.url)
+        return httpx.Response(200)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        notifier = Notifier(NotifySettings(targets=["ntfy:topic"]), Secrets({}), http, "Krabbé")
+        errors = await notifier.send(Message("Krabbé: hi", "body ✓", "x"))
+    assert errors == [] and seen and seen[0].params["title"] == "Krabbé: hi"

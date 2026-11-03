@@ -749,23 +749,31 @@ def cmd_notify(args: argparse.Namespace) -> int:
 
 
 def cmd_web(args: argparse.Namespace) -> int:
+    import shlex
+    import subprocess as sp
+
     paths = _require_instance(args)
     try:
-        from textual_serve.server import Server
+        import textual_serve  # noqa: F401
     except ImportError:
         err.print(
             "[red]The web dashboard needs textual-serve:[/] " + escape("pip install 'decapod[web]'")
         )
         return 1
+    from decapod.tui.web import make_server, new_token
+
     if args.host not in ("127.0.0.1", "localhost", "::1"):
         err.print(
-            f"[bold yellow]Warning:[/] serving on {args.host} exposes the dashboard, "
-            "including its KILL and approval buttons, to your network with no "
-            "password. Prefer an SSH tunnel."
+            f"[bold yellow]Warning:[/] serving on {args.host} exposes the dashboard "
+            "(with its KILL and approval buttons) to your network over plain HTTP. "
+            "Anyone with the URL below can control Decapod. Prefer an SSH tunnel."
         )
-    command = f'"{sys.executable}" -m decapod --dir "{paths.root}" tui'
-    console.print(f"Decapod dashboard on http://{args.host}:{args.port}  (Ctrl+C to stop)")
-    Server(command, host=args.host, port=args.port, title="Decapod").serve()
+    parts = [sys.executable, "-m", "decapod", "--dir", str(paths.root), "tui"]
+    command = sp.list2cmdline(parts) if sys.platform == "win32" else shlex.join(parts)
+    token = new_token()
+    console.print(f"Decapod dashboard: http://{args.host}:{args.port}/?token={token}")
+    console.print("[dim]Keep this URL private. Ctrl+C to stop.[/]")
+    make_server(command, args.host, args.port, token).serve()
     return 0
 
 
