@@ -47,9 +47,9 @@ def test_init_and_friends(home, capsys):
         == 0
     )
     assert (home / "decapod.toml").exists()
-    assert 'name = "Ink"' in (home / "charter.toml").read_text()
-    assert "DEEPSEEK_API_KEY=sk-test-123456" in (home / ".env").read_text()
-    assert 'default_provider = "deepseek"' in (home / "decapod.toml").read_text()
+    assert 'name = "Ink"' in (home / "charter.toml").read_text(encoding="utf-8")
+    assert "DEEPSEEK_API_KEY=sk-test-123456" in (home / ".env").read_text(encoding="utf-8")
+    assert 'default_provider = "deepseek"' in (home / "decapod.toml").read_text(encoding="utf-8")
     assert main(["init", "--yes"]) == 1  # refuses to overwrite
     assert main(["doctor", "--offline"]) == 0
     out = capsys.readouterr().out
@@ -68,7 +68,9 @@ def test_commands_without_instance(home, capsys):
 def test_offline_run_note_and_approvals(home, capsys):
     assert main(["init", "--yes", "--charter", "minimal"]) == 0
     toml = home / "decapod.toml"
-    toml.write_text(toml.read_text().replace('min_interval = "30s"', 'min_interval = "0s"'))
+    toml.write_text(
+        toml.read_text(encoding="utf-8").replace('min_interval = "30s"', 'min_interval = "0s"')
+    )
     assert main(["note", "hello", "there"]) == 0
     assert main(["run", "--offline", "--cycles", "2", "--quiet"]) == 0
     assert main(["log", "-n", "5"]) == 0
@@ -101,7 +103,7 @@ def test_init_model_flags_and_bad_input(home):
         )
         == 0
     )
-    text = (home / "decapod.toml").read_text()
+    text = (home / "decapod.toml").read_text(encoding="utf-8")
     assert 'FLASH = "a"' in text and 'MAX = "c"' in text
     assert main(["init", "--yes", "--force", "--charter", "nope"]) == 1
     assert main(["init", "--yes", "--force", "--provider", "nope"]) == 1
@@ -164,7 +166,9 @@ def test_init_name_is_escaped(home):
 def test_report_notify_web_commands(home, capsys, monkeypatch):
     assert main(["init", "--yes", "--charter", "minimal"]) == 0
     toml = home / "decapod.toml"
-    toml.write_text(toml.read_text().replace('min_interval = "30s"', 'min_interval = "0s"'))
+    toml.write_text(
+        toml.read_text(encoding="utf-8").replace('min_interval = "30s"', 'min_interval = "0s"')
+    )
     assert main(["run", "--offline", "--cycles", "1", "--quiet"]) == 0
     assert main(["report", "--since", "1d", "--save", "--raw"]) == 0
     out = capsys.readouterr().out

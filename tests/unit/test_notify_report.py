@@ -97,7 +97,7 @@ async def test_daemon_notifies_and_writes_reports(tmp_path, monkeypatch):
     kinds = [p["kind"] for p in posted]
     assert "daemon.stop" in kinds and "report.created" in kinds
     reports = list((config.paths.drive / "reports").glob("*.md"))
-    assert len(reports) == 1 and "progress report" in reports[0].read_text()
+    assert len(reports) == 1 and "progress report" in reports[0].read_text(encoding="utf-8")
 
     from decapod.storage import Database
     from decapod.util.timeutil import parse_duration

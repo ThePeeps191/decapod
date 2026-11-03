@@ -45,13 +45,13 @@ def test_parse_and_build_site(tmp_path):
         "style.css",
         "posts/2026-01-02-kelp.html",
     }
-    page = (drive / "site/posts/2026-01-02-kelp.html").read_text()
+    page = (drive / "site/posts/2026-01-02-kelp.html").read_text(encoding="utf-8")
     assert "<strong>fast</strong>" in page and "<script>" not in page
     assert 'href="javascript' not in page
-    index = (drive / "site/index.html").read_text()
+    index = (drive / "site/index.html").read_text(encoding="utf-8")
     assert index.index("Tides &amp; moons") < index.index("Kelp&#x27;s secrets")
     assert "Research &lt;notes&gt;" in index
-    feed = (drive / "site/feed.xml").read_text()
+    feed = (drive / "site/feed.xml").read_text(encoding="utf-8")
     assert "https://me.github.io/posts/2026-01-02-kelp.html" in feed
     import xml.etree.ElementTree as ET
 

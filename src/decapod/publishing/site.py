@@ -179,7 +179,7 @@ def build_site(
     files: list[str] = []
 
     def write(rel: str, content: str) -> None:
-        (staging / rel).write_text(content, encoding="utf-8")
+        (staging / rel).write_text(content, encoding="utf-8", newline="\n")
         files.append(rel)
 
     write("style.css", STYLE)
