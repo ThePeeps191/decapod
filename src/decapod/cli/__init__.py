@@ -250,7 +250,15 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def cmd_start(args: argparse.Namespace) -> int:
     paths = _require_instance(args)
-    InstanceConfig.load(paths.root)  # fail fast on config errors
+    config = InstanceConfig.load(paths.root)  # fail fast on config errors
+    if not args.offline:
+        from decapod.config.providers import resolve_routes
+
+        routing = resolve_routes(config.settings.llm, config.secrets)
+        if not routing.ok:
+            raise ConfigError(
+                "model configuration: " + "; ".join(routing.problems) + " (see `decapod doctor`)"
+            )
     pid = _running_pid(paths)
     if pid:
         console.print(f"Already running (pid {pid}).")

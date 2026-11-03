@@ -25,6 +25,10 @@ class EventLog:
         self.bus = bus or EventBus()
         self._redact = redact or (lambda s: s)
 
+    def redact(self, text: str) -> str:
+        """Apply the secret redactor (used for anything persisted next to events)."""
+        return self._redact(text)
+
     def append(
         self,
         kind: str,

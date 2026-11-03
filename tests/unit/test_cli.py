@@ -1,4 +1,5 @@
 import json
+import sys
 
 import pytest
 
@@ -114,6 +115,7 @@ def test_eval_command(home, capsys):
     json.dumps({})
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups and signals")
 def test_background_start_stop_kill(home, capsys):
     from decapod.config import InstancePaths
     from decapod.daemon import running_pid
@@ -142,3 +144,9 @@ def test_background_start_stop_kill(home, capsys):
     assert main(["start", "--offline"]) == 1
     assert main(["start", "--offline", "--clear-stop"]) == 0
     assert main(["kill"]) == 0
+
+
+def test_start_refuses_without_models(home, capsys):
+    assert main(["init", "--yes", "--charter", "minimal"]) == 0
+    assert main(["start"]) == 2
+    assert "model configuration" in capsys.readouterr().err

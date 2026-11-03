@@ -178,3 +178,14 @@ async def test_embeddings_optional():
 
 def test_cost_type():
     assert Cost().tokens == 0
+
+
+async def test_llm_call_log_is_redacted(tmp_path):
+    db = Database(tmp_path / "r.db")
+    log = EventLog(db, redact=lambda s: s.replace("sekrit-value", "[REDACTED]"))
+    provider = ScriptedProvider({"r": "the key is sekrit-value"})
+    llm = LLM(LLMSettings(), provider, recorder=log, sleep=no_sleep)
+    await llm.chat([Message.user("echo sekrit-value")], tier=Tier.FLASH, purpose="r")
+    row = db.query_one("SELECT request, response FROM llm_calls")
+    assert "sekrit" not in row["request"] and "sekrit" not in row["response"]
+    db.close()

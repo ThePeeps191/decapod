@@ -109,6 +109,7 @@ async def test_memory_tools_and_amendment(registry, make_ctx):
 # --------------------------------------------------------------------------- drive
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
 def test_resolve_in_drive(tmp_path):
     drive = tmp_path / "drive"
     drive.mkdir()
