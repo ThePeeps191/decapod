@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decapod.tools.base import Tool
+from decapod.tools.builtin.browser import BROWSER_TOOLS
 from decapod.tools.builtin.code import CODE_TOOLS
 from decapod.tools.builtin.drive import DRIVE_TOOLS
 from decapod.tools.builtin.email import EMAIL_TOOLS
@@ -15,6 +16,7 @@ ALL_TOOLS: list[type[Tool]] = [
     *INTERNAL_TOOLS,
     *DRIVE_TOOLS,
     *WEB_TOOLS,
+    *BROWSER_TOOLS,
     *CODE_TOOLS,
     *EMAIL_TOOLS,
     *GITHUB_TOOLS,
