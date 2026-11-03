@@ -219,3 +219,6 @@ __marimo__/
 
 .opencode/
 docs/idea.html
+# Decapod
+scripts/_entry.py
+.decapod/

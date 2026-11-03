@@ -1,18 +1,59 @@
-# Decapod Installation Instructions for Agents
+# Decapod installation instructions for coding agents
 
-You are tasked with installing [Decapod](https://github.com/ThePeeps191/decapod) for your user.
+You are installing [Decapod](https://github.com/ThePeeps191/decapod) for your user. Decapod is an autonomous AI agent that runs as a background process and is monitored from a terminal UI.
 
+Rules:
 
-A few rules to follow:
+- If anything fails in a way that matters (permission errors, no disk space, a missing prerequisite, a failing command), **stop** and tell the user:
+  - what failed and where,
+  - the exact error,
+  - how they can fix it, or how you could fix it with their permission.
 
-- If you are unable to do things (such as permissions errors, no storage left, prerequisites missing, etc.) you must always stop immediately unless the error is not dangerous or severe at all (e.g. a small warning that states a future depreciation but does not actually effect any actions running/working). Then, provide the user with **helpful and insightful** messages such as telling them what the error is, how you can fix it on your own or how they can fix it manually, where you ran into this error, etc.
+  Harmless warnings, such as a deprecation notice, can be mentioned and ignored.
+- Never invent or guess API keys. Ask the user for one, or let them enter it themselves in the interactive `decapod init`.
+- Do not start Decapod (`decapod start`) unless the user asks. It is an autonomous agent that spends API credits.
 
-Prerequisites, the following are needed in order to install Decapod:
+## Prerequisites
 
-- **Git**
-- **Python 3.9+**, but early versions may also work. Ensure Python is added to the user's path and is accessible. You may want to run a dummy command to ensure you can access Python such as `python --version`.
-- **Pip**, ensure this is also added to Path. You may want to run a dummy command to ensure you can access Pip such as `pip --version`.
+- Python 3.11 or newer on `PATH`. Check with `python --version`; on some systems it is `python3`.
+- `pip` (check `python -m pip --version`), or `uv`.
+- Git, if installing from a clone.
+- Optional, on Linux: `bubblewrap` (the `bwrap` command), which enables the sandboxed `code.run` tool.
 
-Before you start, ensure that you have access to the user's computer including permissions such as read, write, and running terminal commands. If you do not have these permissions, or any other permissions that you believe you will need, stop immediately and tell the user that you do not have these permissions. Also **tell them how to fix this or how to give you the needed permissions**.
+Make sure you have permission to install packages and write files. If you don't, stop and tell the user how to grant it.
 
-The first step is to clone the GitHub repository from https://github.com/ThePeeps191/decapod.git with `git clone https://github.com/ThePeeps191/decapod.git`.
+## Steps
+
+1. Install the package. Prefer a virtual environment or `pipx`/`uv tool`:
+
+   ```bash
+   python -m pip install "git+https://github.com/ThePeeps191/decapod.git"
+   ```
+
+2. Check that it installed:
+
+   ```bash
+   decapod --version
+   ```
+
+3. Create an instance. Ask the user which charter they want (`decapod charters` lists them) and which model provider they use. If they give you a key:
+
+   ```bash
+   decapod init --yes --charter researcher --provider anthropic --api-key "<their key>"
+   ```
+
+   Otherwise, ask them to run `decapod init` themselves and enter the key at its prompt.
+
+4. Verify:
+
+   ```bash
+   decapod doctor
+   ```
+
+   All model checks should pass. Warnings about disabled email, GitHub or bubblewrap are fine.
+
+5. Tell the user:
+   - where the instance lives (doctor prints it),
+   - how to edit `charter.toml`,
+   - how to start and watch Decapod: `decapod start`, then `decapod tui`,
+   - how to stop it: `decapod stop`, or `decapod kill` for an immediate stop.

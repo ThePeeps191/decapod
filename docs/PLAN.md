@@ -1,6 +1,8 @@
 # Decapod: Master Plan
 
-> Status: living design document. It replaces the original brief draft in the README as the source of truth for *what Decapod is* and *how it will be built*. The README should stay a short pitch that links here.
+> **Status: implemented (v1.0).** This is the design plan Decapod was built from. Where the build diverged from the plan, the plan has been updated to match. For how things work *now*, see [architecture.md](architecture.md), [configuration.md](configuration.md), [safety.md](safety.md), [charters.md](charters.md) and [tools.md](tools.md).
+>
+> Main divergences: there are three model tiers (FLASH, PRO, MAX) instead of six; providers are built-in presets for any OpenAI-compatible API, chosen from the API keys in `.env` files; `charter.propose_amendment` is tier 0, since it only records a proposal; tier-2 actions escalate to L1 rather than L2; and the TUI is a single app with five tabs.
 
 ---
 
@@ -59,7 +61,7 @@ What exists:
 
 | Area | State |
 |------|-------|
-| `src/llm/` | Working streaming chat client over an OpenAI-compatible API (Hack Club AI proxy), with model tiers FLASH / PRO / MAX / MYTHOS / MULTIMODAL / FREE and reasoning/answer separation. |
+| `src/llm/` | Working streaming chat client over a single hard-coded OpenAI-compatible endpoint, with six named model tiers and reasoning/answer separation. |
 | `src/tui/` | Textual app that shows a clock (placeholder). |
 | `src/main.py` | Launches the TUI. |
 | Other `src/*` packages | Empty `__init__.py` files that name the intended architecture: agents, caucus, config, control, daemon, domain, drive, executive, logs, memory, prompts, runtime, storage, tools. |
@@ -204,7 +206,7 @@ class LLMProvider(Protocol):
     async def stream(self, req: CompletionRequest) -> AsyncIterator[CompletionChunk]: ...
 
 class CompletionRequest(BaseModel):
-    tier: Tier                       # FAST | STANDARD | STRONG | FRONTIER | VISION | FREE
+    tier: Tier                       # FLASH | PRO | MAX
     messages: list[Message]
     response_model: type[BaseModel] | None   # → JSON-schema structured output
     tools: list[ToolSpec] | None
@@ -214,19 +216,17 @@ class CompletionRequest(BaseModel):
     cycle_id: str
 ```
 
-- **Tiers, not names.** The existing FLASH/PRO/MAX/MYTHOS/MULTIMODAL/FREE become config-mapped tiers:
+- **Tiers, not names.** There are three tiers. Each is mapped to a concrete `provider:model` in config, or taken from the default provider's preset:
 
-  | Tier | Current mapping | Typical use |
-  |------|-----------------|-------------|
-  | `FREE` | `tencent/hy3:free` | Summarization, log compaction, memory tagging |
-  | `FAST` | `deepseek-v4-flash` | Specialists, quick path |
-  | `STANDARD` | `deepseek-v4-pro` | Managers, planner, reflection |
-  | `STRONG` | `glm-5.2` | Executive (normal) |
-  | `FRONTIER` | `claude-fable-5` | Executive on high-risk decisions, charter-amendment proposals |
-  | `VISION` | `mimo-v2.5` | Screenshots, images, PDFs |
+  | Tier | Typical use |
+  |------|-------------|
+  | `FLASH` | Specialists, triage, the L0 quick path, memory compaction |
+  | `PRO` | Managers, Risk Officer, reflection, the executive at L1–L2 |
+  | `MAX` | The executive at L3 (external writes, grave decisions) |
 
+- **Providers.** Built-in presets cover Anthropic, OpenAI, OpenRouter, DeepSeek, Gemini, Mistral, Groq, Together, xAI, Fireworks, Ollama and LM Studio, and custom endpoints can be added. API keys come from the environment, the instance `.env` and a user-wide `.env`. With no config, Decapod uses the first provider whose key it finds.
 - **Structured output.** Use `response_format={"type":"json_schema"}` where the provider supports it. Otherwise fall back to "JSON in a fenced block" plus Pydantic validation, with up to 2 repair retries. Implement this in one function (`structured.py`) so every agent gets it.
-- **Reliability.** Exponential backoff, per-tier fallback chain (e.g. FRONTIER → STRONG), and timeouts, plus a circuit breaker if the provider is down. If that happens the daemon *sleeps* instead of burning retries.
+- **Reliability.** Exponential backoff, per-tier fallback chain (MAX → PRO → FLASH), and timeouts, plus a circuit breaker if the provider is down. If that happens the daemon *sleeps* instead of burning retries.
 - **Metering.** Every call emits an `llm.call` event: tier, model, tokens in/out, reasoning tokens, latency, estimated cost and `purpose`. `control/budget.py` checks it *before* the call (pre-authorization) and after it (settlement).
 - **Transcripts are separate objects.** `Transcript` holds message history for one agent conversation, so many specialists can share one provider concurrently.
 - **`FakeProvider`** for tests: scripted responses keyed by `purpose`, plus a **cassette** mode that records real calls and replays them.
@@ -300,7 +300,7 @@ Four kinds of memory plus the agenda:
 Design details:
 
 - **Retrieval score** = `α·relevance + β·recency_decay + γ·importance + δ·goal_match`, with weights in config. This is a Generative-Agents-style scoring that is simple and works well.
-- **Compaction.** A nightly (or every N cycles) job runs on the `FREE` tier. It merges old episodic entries into weekly summaries, so the context budget stays bounded while history stays complete in the event log.
+- **Compaction.** Every N cycles, a job runs on the `FLASH` tier. It merges old episodic entries into weekly summaries, so the context budget stays bounded while history stays complete in the event log.
 - **Memory integrity.** Memories store `source_event_id`. Any memory can be traced back to the events that produced it, which is how the TUI answers "why does it believe this?".
 - **Embeddings.** Use the provider's embedding endpoint if it has one. Otherwise use a small local model (optional extra: `fastembed`). If neither is available, degrade gracefully to SQLite FTS5 keyword search.
 - **Context budgeter.** Every prompt is built by `retrieval.build_context(role, token_budget)`, which fills sections by priority and truncates predictably. Context overflow should never be a runtime error.
@@ -365,10 +365,10 @@ Round 6  DECIDE    Executive reads the 3 reports (not raw debate) → Decision  
 
 | Level | When | What runs | Rough cost |
 |-------|------|-----------|-----------|
-| **L0 Reflex** | Continuing an in-progress task with a tier-0/1 action, nothing new perceived | Planner proposes → Executive (FAST) confirms | 2 calls |
+| **L0 Reflex** | Continuing an in-progress task with a tier-0/1 action, nothing new perceived | Planner proposes → Executive (FLASH) confirms | 2 calls |
 | **L1 Quick** | Routine choice among known options | Propose (3 specialists) → Critic → Executive | ~5 calls |
 | **L2 Full** | New goal, plan change, tier-2 action, or a conflicting signal | Full 6-round protocol | ~15–20 calls |
-| **L3 Grave** | Tier-3+ action, charter-adjacent, agenda overhaul, or repeated failure | Full protocol, 2 critique rounds, FRONTIER executive, mandatory dissent review | ~25–30 calls |
+| **L3 Grave** | Tier-3+ action, charter-adjacent, agenda overhaul, or repeated failure | Full protocol, 2 critique rounds, MAX executive, mandatory dissent review | ~25–30 calls |
 
 Other protocol rules:
 
@@ -443,7 +443,7 @@ The operator can move tools between "auto" and "approval" per scope (e.g. allow 
 **Built-in tools for v1:**
 `web.search`, `web.fetch` (readable-text extraction), `drive.read/write/list` (sandboxed), `code.run` (Python in a subprocess with timeout, no network by default, cwd locked to drive), `notes.publish` (writes Markdown to a drive folder, the safe way to "publish"), `clock.now`, `self.status` (own budget/agenda), `agenda.*`, `memory.*`.
 
-**Later tools:** email (IMAP/SMTP or provider API), GitHub (issues/PRs on allowed repos), RSS, calendar, a headless browser (Playwright), and image understanding via the VISION tier.
+**Later tools:** email (IMAP/SMTP or provider API), GitHub (issues/PRs on allowed repos), RSS, calendar, a headless browser (Playwright), and image understanding.
 
 **MCP integration** (`tools/mcp.py`): connect to MCP servers listed in config. Their tools are imported with an **operator-assigned risk tier per server or tool**. Unknown MCP tools default to tier 3 (approval). Tool descriptions from MCP servers are treated as untrusted text.
 
@@ -464,7 +464,7 @@ Pure Python with no LLM calls, and the most heavily tested package.
 - **Budgets** (`budget.py`): hierarchical ceilings: per-cycle / per-hour / per-day / lifetime × tokens, $ estimate, LLM requests, tool calls by tier, outbound messages. Pre-authorize before spending, settle after. At 80% usage, emit a warning percept so Decapod can plan around it. At 100%, sleep until the window resets, or stop if the lifetime budget is gone.
 - **Policy engine** (`policy.py`): `review(decision) -> Allowed | NeedsApproval | Denied`. Checks, in order: kill/pause state → charter prohibitions (keyword/scope rules, plus an optional cheap classifier as *extra* signal, never the only one) → tool scope granted? → risk tier policy → rate limits → budget pre-auth.
 - **Approvals** (`approvals.py`): a queue the TUI shows with the full decision, rationale and dissent. Each item can be approved, denied or edited. Approvals expire after a configurable time, and expiry counts as a denial. Decapod is told the outcome as a percept and adapts.
-- **Charter guard.** The charter file is loaded read-only and its hash is logged every cycle. Decapod can only *propose* amendments (`charter.propose_amendment`, tier 4), and the operator applies them by editing the file.
+- **Charter guard.** The charter file is loaded read-only and its hash is logged every cycle. Decapod can only *propose* amendments (`charter.propose_amendment`, which only records a proposal), and the operator applies them by editing the file.
 
 ### 5.11 `logs/`: observability
 
@@ -495,16 +495,12 @@ name = "tidepool"
 charter = "charter.toml"
 
 [llm]
-base_url = "https://ai.hackclub.com/proxy/v1"
-api_key_env = "HACKCLUB_AI_API_KEY"
+default_provider = "anthropic"     # optional: the first provider with a key in .env is used
 
-[llm.tiers]
-FREE = "tencent/hy3:free"
-FAST = "deepseek/deepseek-v4-flash"
-STANDARD = "deepseek/deepseek-v4-pro"
-STRONG = "z-ai/glm-5.2"
-FRONTIER = "anthropic/claude-fable-5"
-VISION = "xiaomi/mimo-v2.5"
+[llm.tiers]                        # optional: override the preset per tier
+FLASH = "claude-haiku-5-5"
+PRO = "claude-sonnet-5-5"
+MAX = "openrouter:anthropic/claude-opus-5-5"
 
 [schedule]
 min_interval = "30s"
@@ -594,7 +590,7 @@ Guarantee to state in the README: **Decapod can never take an action that is out
 
 - `pyproject.toml` with hatchling or setuptools, entry point `decapod`, optional extras `[mcp]`, `[embeddings]`, `[browser]`, `[dev]`.
 - Recommend `uv` (`uv tool install decapod` / `uvx decapod`); plain `pip` still works.
-- `decapod init` is the interactive wizard that replaces `install.py`: create the data dir, ask for the API key (stored in `.env`), pick an example charter, set budgets, and run a health check (one FAST call + one structured call).
+- `decapod init` is the interactive wizard that replaces `install.py`: create the data dir, ask for the API key (stored in `.env`), pick an example charter, set budgets, and run a health check (one structured call per configured model).
 - `install.md` stays as the "paste this into your coding agent" path, updated to `pip install` + `decapod init`.
 - PyInstaller single-binary build (`decapod.exe`) as a release artifact once things are stable (M7).
 
@@ -605,67 +601,67 @@ Guarantee to state in the README: **Decapod can never take an action that is out
 Each milestone ends with a demo-able state and a tagged release. Rough sizes assume one main developer working part-time.
 
 ### M0: Foundation cleanup (≈ 1 week)
-- [ ] `pyproject.toml`, src layout `src/decapod/`, UTF-8 deps, runtime/dev split, Python 3.11+
-- [ ] Fix relative imports, remove module-level TUI construction, delete/finish `undo_sent_msg`
-- [ ] `ruff`, `pytest`, `pre-commit`, CI workflow
-- [ ] `config/` settings loader (TOML + env) with model tiers
-- [ ] `domain/` core models
+- [x] `pyproject.toml`, src layout `src/decapod/`, UTF-8 deps, runtime/dev split, Python 3.11+
+- [x] Fix relative imports, remove module-level TUI construction, delete/finish `undo_sent_msg`
+- [x] `ruff`, `pytest`, `pre-commit`, CI workflow
+- [x] `config/` settings loader (TOML + env) with model tiers
+- [x] `domain/` core models
 - **Exit:** `pip install -e .[dev] && pytest` green in CI; `decapod --version` works.
 
 ### M1: LLM layer & storage (≈ 1–2 weeks)
-- [ ] Async `LLMProvider` (OpenAI-compatible), tiers, retries/fallback, streaming
-- [ ] `structured.py` with Pydantic validation + repair
-- [ ] Cost meter events; `FakeProvider` + cassette recorder
-- [ ] SQLite storage, migrations, event log, `tail()`
-- **Exit:** `decapod ask --tier FAST --schema Goal "..."` returns a validated object, and the call appears in the event log with its cost.
+- [x] Async `LLMProvider` (OpenAI-compatible), tiers, retries/fallback, streaming
+- [x] `structured.py` with Pydantic validation + repair
+- [x] Cost meter events; `FakeProvider` + cassette recorder
+- [x] SQLite storage, migrations, event log, `tail()`
+- **Exit:** `decapod ask --tier FLASH "..."` returns a validated object, and the call appears in the event log with its cost.
 
 ### M2: Minimal cognitive loop (≈ 2 weeks)
-- [ ] Runtime loop with perceive / decide (single executive call, no caucus yet) / act / reflect
-- [ ] Agenda store (goals/tasks) + `agenda.*` internal tools
-- [ ] Tier 0–1 tools: `web.search`, `web.fetch`, `drive.*`, `clock`, `self.status`
-- [ ] Policy engine + budgets + kill switch (`pause/stop/kill`, STOP file)
-- [ ] Daemon with scheduler, PID file, `decapod start/stop/kill/status`
+- [x] Runtime loop with perceive / decide (single executive call, no caucus yet) / act / reflect
+- [x] Agenda store (goals/tasks) + `agenda.*` internal tools
+- [x] Tier 0–1 tools: `web.search`, `web.fetch`, `drive.*`, `clock`, `self.status`
+- [x] Policy engine + budgets + kill switch (`pause/stop/kill`, STOP file)
+- [x] Daemon with scheduler, PID file, `decapod start/stop/kill/status`
 - **Exit:** given a charter, Decapod runs unattended for 24h, sets its own goals, does read-only research, writes notes to its drive, stays within budget and stops instantly on command.
 
 ### M3: The TUI monitor (≈ 1–2 weeks; can overlap M2)
-- [ ] Dashboard, Live feed, Agenda screens
-- [ ] Control: pause/resume/stop/kill; approvals screen
+- [x] Dashboard, Live feed, Agenda screens
+- [x] Control: pause/resume/stop/kill; approvals screen
 - **Exit:** everything in M2 is watchable and controllable from the TUI. Replace the clock.
 
 ### M4: The caucus (≈ 2–3 weeks)
-- [ ] `AgentSpec` + roster + Jinja prompts for all specialists
-- [ ] 6-round protocol, ranking aggregation, chamber managers, executive over reports
-- [ ] Escalation triage L0–L3, loop breaker, dissent recording
-- [ ] Caucus TUI screen
-- [ ] Eval: caucus vs. single-agent on 5 scenarios
+- [x] `AgentSpec` + roster + Jinja prompts for all specialists
+- [x] 6-round protocol, ranking aggregation, chamber managers, executive over reports
+- [x] Escalation triage L0–L3, loop breaker, dissent recording
+- [x] Caucus TUI screen
+- [x] Eval: caucus vs. single-agent on 5 scenarios
 - **Exit:** measurable quality improvement over the M2 single-executive baseline at an acceptable cost multiplier; the caucus screen shows debates.
 
 ### M5: Real memory (≈ 2 weeks)
-- [ ] Episodic + semantic + reflective stores, embeddings (+ FTS fallback)
-- [ ] Retrieval scoring, context budgeter, compaction job
-- [ ] Reflector specialist; lessons injected into Strategist/Executive
-- [ ] Memory screen with source tracing
+- [x] Episodic + semantic + reflective stores, embeddings (+ FTS fallback)
+- [x] Retrieval scoring, context budgeter, compaction job
+- [x] Reflector specialist; lessons injected into Strategist/Executive
+- [x] Memory screen with source tracing
 - **Exit:** a 7-day run shows Decapod reusing lessons (fewer repeated failures over time, shown in metrics).
 
 ### M6: External world (≈ 2–3 weeks)
-- [ ] Sandboxed `code.run`; secret scrubbing
-- [ ] MCP client with per-server risk tiers
-- [ ] Tier-3 tools: email (inbox read + reply-only to senders), GitHub (scoped repos), publishing
-- [ ] Prompt-injection eval suite
+- [x] Sandboxed `code.run`; secret scrubbing
+- [x] MCP client with per-server risk tiers
+- [x] Tier-3 tools: email (inbox read + reply-only to senders), GitHub (scoped repos), publishing
+- [x] Prompt-injection eval suite
 - **Exit:** Decapod can maintain a small public artifact (e.g. a GitHub repo of research notes, or an email-reachable persona) with tier-3 actions on `auto` for granted scopes, and passes the injection evals.
 
 ### M7: Polish & release 1.0 (≈ 2 weeks)
-- [ ] `decapod init` wizard, example charters, docs site (`docs/`)
-- [ ] `decapod replay <cycle>` and `decapod eval` CLIs
-- [ ] PyInstaller binaries, PyPI release
-- [ ] README rewrite: demo GIF of the caucus screen, eval chart, safety guarantees
+- [x] `decapod init` wizard, example charters, docs site (`docs/`)
+- [x] `decapod replay <cycle>` and `decapod eval` CLIs
+- [x] PyInstaller binaries, PyPI release
+- [x] README rewrite: demo GIF of the caucus screen, eval chart, safety guarantees
 - **Exit:** a stranger can go from zero to a running, monitored Decapod in under 5 minutes.
 
 ### Stretch (post-1.0)
 - Multi-instance "society": several Decapods with different charters interacting through a shared, sandboxed message board. It's fun research, and the walls make it safe.
 - Web dashboard (textual-serve or a small FastAPI + HTMX).
 - Learned role weighting: specialists whose dissents proved right get more ranking weight.
-- Local-model support (Ollama / llama.cpp) for zero-cost FREE/FAST tiers.
+- Local-model support (Ollama / llama.cpp) for zero-cost tiers (presets exist; deeper tuning remains).
 - Voice/vision percepts; scheduled "diary" posts written by the Reflector.
 - Plug-in specialists and tools via entry points.
 
@@ -674,7 +670,7 @@ Each milestone ends with a demo-able state and a tagged release. Rough sizes ass
 ## 10. Open Questions
 
 1. **Default autonomy level.** Ship with tier-3 on `approval` (safe, slightly less "autonomous") or `auto` for granted scopes? *Recommendation: `approval` by default, with one config line to flip it, plus a loud TUI banner when it's `auto`.*
-2. **Caucus cost on free/cheap providers.** Hack Club's proxy may rate-limit a 20-call deliberation. Escalation levels help, and we may need request pacing and a "lean roster" preset.
+2. **Caucus cost on cheap or rate-limited providers.** A 20-call deliberation can hit rate limits. *Resolved:* escalation levels, `min_request_interval` pacing, `max_concurrency`, `max_level` and `disabled_roles`.
 3. **Embeddings source.** Does the provider expose embeddings? If not, is `fastembed` (~100MB) acceptable as an optional extra?
 4. **Identity & disclosure.** For tier-3 communication, should every outbound message carry an automatic "sent by an autonomous AI agent" footer? *Recommendation: yes, enforced by the tool layer, not the prompt.*
 5. **Windows support depth.** Signals, process groups and sandboxing differ on Windows. Decide whether Windows is first-class at 1.0 or "TUI + daemon, reduced sandbox".

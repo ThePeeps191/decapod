@@ -131,7 +131,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         ok &= asyncio.run(_ping_models(config))
     console.print("[bold]Tools[/]")
     registry = ToolRegistry(config.settings, config.secrets)
-    for tool in builtin_tools():
+    from decapod.tools.plugins import plugin_tools
+
+    for tool in [
+        *builtin_tools(),
+        *plugin_tools(lambda n, e: check(f"plugin {n}", False, str(e), warn=True)),
+    ]:
         registry.register(tool)
     granted = [
         t.name

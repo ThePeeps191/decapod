@@ -427,3 +427,28 @@ async def test_mcp_bad_command():
     manager = MCPManager([MCPServerSettings(name="ghost", command=["/nonexistent/binary"])])
     assert await manager.start() == []
     assert "ghost" in manager.errors
+
+
+def test_plugin_tools(monkeypatch):
+    from decapod.tools import plugins
+    from decapod.tools.builtin.internal import ClockNow
+
+    class Entry:
+        def __init__(self, name, obj):
+            self.name, self.obj = name, obj
+
+        def load(self):
+            if isinstance(self.obj, Exception):
+                raise self.obj
+            return self.obj
+
+    entries = [
+        Entry("cls", ClockNow),
+        Entry("inst", ClockNow()),
+        Entry("factory", lambda: [ClockNow(), "junk"]),
+        Entry("bad", ImportError("x")),
+    ]
+    monkeypatch.setattr(plugins, "entry_points", lambda group: entries)
+    errors = []
+    tools = plugins.plugin_tools(lambda name, exc: errors.append(name))
+    assert len(tools) == 3 and errors == ["bad"]

@@ -28,6 +28,7 @@ from decapod.tools import (
     ToolRegistry,
     builtin_tools,
 )
+from decapod.tools.plugins import plugin_tools
 from decapod.util.timeutil import now, to_iso
 
 log = logging.getLogger(__name__)
@@ -107,6 +108,8 @@ class Instance:
             return
         tools: list[Tool] = builtin_tools() if self._include_builtin else []
         tools += self._extra_tools
+        if self._include_builtin:
+            tools += self._plugin_tools()
         if self.mcp.configs:
             tools += await self.mcp.start()
             for name, error in self.mcp.errors.items():
@@ -123,6 +126,17 @@ class Instance:
         self.recover()
         self.seed_goals()
         self._started = True
+
+    def _plugin_tools(self) -> list[Tool]:
+        def report(name: str, exc: Exception) -> None:
+            self.events.append(
+                "tools.plugin_error",
+                f"plugin {name} failed: {exc}",
+                {"plugin": name, "error": str(exc)},
+                actor="tools",
+            )
+
+        return plugin_tools(report)
 
     async def close(self) -> None:
         with contextlib.suppress(Exception):
