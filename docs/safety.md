@@ -12,8 +12,8 @@ Decapod runs without a human in the loop, so its limits must hold even when a mo
 | An approved action is re-checked at execution time and runs at most once | `Runtime.execute_approved` (policy + idempotency key) | `test_daemon.py` |
 | Nothing runs after a kill; in-flight model and tool calls are cancelled | `Controller.kill` hooks, daemon control watcher, process-group kill | `test_daemon.py::test_kill_interrupts_a_running_cycle`, `test_cli.py` |
 | The agent cannot edit its charter, config or code | No tool writes outside the drive; the drive refuses paths that escape it | `test_tools.py::test_resolve_in_drive` |
-| Secrets never reach a prompt or an outbound message | Secrets are read only by tools; outputs and events are redacted; outbound arguments containing a secret are refused | `test_tools.py` |
-| Prohibited content never leaves | Charter `patterns` are checked against the arguments of every external-write action | `test_control.py` |
+| Secrets never reach a prompt or leave the machine | Secrets are read only by tools; tool output, events and model-call logs are redacted; any externally visible call (including search queries) whose arguments contain a secret is refused | `test_tools.py`, `test_regressions.py` |
+| Prohibited content never leaves | Charter `patterns` are checked against every argument value (unescaped) of every external-write action | `test_control.py`, `test_regressions.py` |
 | It does not cold-contact people | The `reply_only` contact policy is enforced in `email.send`'s precheck | `test_tools.py` |
 | Outbound messages disclose that an AI wrote them | The tool layer appends a footer | `tools/builtin/email.py`, `github.py` |
 
@@ -49,12 +49,14 @@ Decapod runs without a human in the loop, so its limits must hold even when a mo
 - The charter's hash is logged every cycle; changes are logged as `charter.changed`.
 
 **SSRF and local network access.**
-- `web.fetch` and `feeds.read` resolve every hop, including redirects, and refuse loopback, private, link-local, reserved and multicast addresses unless the operator allows them.
+- `web.fetch` and `feeds.read` resolve every hop, including redirects, and refuse any address that is not globally routable unless the operator allows it. That covers loopback, private, link-local, carrier-grade NAT (cloud metadata), reserved, multicast, and IPv4 addresses mapped into IPv6.
+- After connecting, the actual peer address is checked again, which defeats DNS rebinding.
 
 **Code execution.**
 - `code.run` is available only with bubblewrap. Bubblewrap gives it:
   - a read-only system
   - a hidden home directory and instance folder
+  - empty `/tmp`, `/run`, `/var/run` and `/var/tmp`, so host Unix sockets (Docker, D-Bus, systemd) are out of reach
   - a writable `drive/sandbox` and nothing else
   - no network by default
   - resource limits
@@ -67,7 +69,7 @@ Decapod runs without a human in the loop, so its limits must hold even when a mo
 ## What Decapod does not protect against
 
 - **A compromised operator account or machine.** Anyone who can edit `decapod.toml` can widen the policy.
-- **Harm from actions you allowed.** If you grant a scope and set its mode to `auto`, Decapod will use it as it sees fit, within budget. Grant narrowly. Prefer per-scope `auto` (for example `"github:you/notes.write" = "auto"`) over whole tiers.
+- **Harm from actions you allowed.** If you grant a scope and set its mode to `auto`, Decapod will use it as it sees fit, within budget. Grant narrowly. Prefer per-scope `auto` (for example `"github:you/notes:write" = "auto"`) over whole tiers.
 - **Model provider data handling.** Prompts go to the provider you configure.
 
 ## Recommended setup

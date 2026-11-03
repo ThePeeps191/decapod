@@ -17,7 +17,7 @@ from decapod.config.settings import PolicyMode, Settings
 from decapod.control.budget import Budget
 from decapod.domain import ActionSpec, BudgetExceeded, Cost, RiskTier, RunState, SideEffect
 from decapod.storage import Database
-from decapod.util.text import json_dumps
+from decapod.util.text import json_dumps, string_leaves
 from decapod.util.timeutil import now, to_iso
 
 Outcome = Literal["allow", "approve", "deny"]
@@ -135,18 +135,21 @@ class PolicyEngine:
             tool.tier >= RiskTier.EXTERNAL_WRITE
         ):
             checks.append("charter_prohibitions")
-            serialized = json_dumps(action.args)
+            # Check every argument value as written (not JSON-escaped, so newlines, quotes
+            # and ^/$ anchors behave), plus the serialized form for cross-field patterns.
+            texts = [*string_leaves(action.args), json_dumps(action.args)]
             for pattern in self.charter.compiled_patterns():
-                if pattern.search(serialized):
+                if any(pattern.search(text) for text in texts):
                     return deny(f"arguments match charter prohibition pattern {pattern.pattern!r}")
 
         checks.append("rate_limit")
         for tool_glob, limit in self.settings.policy.rate_limits.items():
             if fnmatch.fnmatchcase(tool.name, tool_glob):
                 since = to_iso(now() - timedelta(hours=1))
+                # The limit is shared by every tool the glob matches.
                 used = self.db.scalar(
-                    "SELECT COUNT(*) FROM tool_calls WHERE tool = ? AND ts >= ?",
-                    (tool.name, since),
+                    "SELECT COUNT(*) FROM tool_calls WHERE tool GLOB ? AND ts >= ?",
+                    (tool_glob, since),
                     0,
                 )
                 if used >= limit.per_hour:

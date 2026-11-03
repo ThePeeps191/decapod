@@ -17,8 +17,8 @@ ranked = [
 [scopes]
 granted = [
     "web.read", "drive.*", "notes.*",
-    "github:OWNER/REPO.read",
-    "github:OWNER/REPO.write",
+    "github:OWNER/REPO:read",
+    "github:OWNER/REPO:write",
 ]
 
 [prohibitions]

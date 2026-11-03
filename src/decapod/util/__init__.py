@@ -5,6 +5,7 @@ from decapod.util.text import (
     extract_json,
     json_dumps,
     one_line,
+    string_leaves,
     truncate,
 )
 from decapod.util.timeutil import (
@@ -24,6 +25,7 @@ __all__ = [
     "now",
     "one_line",
     "parse_duration",
+    "string_leaves",
     "to_iso",
     "truncate",
 ]

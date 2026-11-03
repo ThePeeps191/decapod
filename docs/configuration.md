@@ -69,7 +69,7 @@ The windows are `cycle`, `hourly`, `daily` (local midnight) and `lifetime`. Each
 | Key | Default | Meaning |
 |---|---|---|
 | `modes` | tier0–2 `auto`, tier3–4 `approval` | `auto`, `approval` or `deny` per risk tier (`tier3 = "auto"`) |
-| `scope_modes` | `{}` | Per-scope overrides, using globs (`"github:me/notes.write" = "auto"`). When several match, the most restrictive wins |
+| `scope_modes` | `{}` | Per-scope overrides, using globs (`"github:me/notes:write" = "auto"`). When several match, the most restrictive wins |
 | `rate_limits` | web.fetch 120/h, web.search 60/h | `"tool.glob" = {per_hour = N}` |
 | `approval_ttl` | `24h` | Unanswered approvals expire, and are reported to the agent |
 | `consecutive_denials_kill` | 8 | Stop the instance after this many policy denials in a row (0 = never) |

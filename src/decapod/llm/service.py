@@ -234,8 +234,15 @@ class LLM:
         route = self.routing.routes[tier]
         model = route.model
         prompt_tokens = sum(estimate_tokens(m.content) for m in messages)
-        if self.gate is not None:
-            self.gate.authorize(Cost(tokens_in=prompt_tokens, llm_requests=1), cycle_id)
+        price = self.settings.price_for(route.provider, model)
+        output_cap = max_tokens or 4096
+        # Worst-case estimate, reserved before *every* attempt (retries included) so
+        # concurrent and repeated calls cannot overshoot a budget between settlements.
+        estimate = Cost(
+            tokens_in=prompt_tokens,
+            llm_requests=1,
+            usd=(prompt_tokens * price.input + output_cap * price.output) / 1_000_000,
+        )
 
         json_mode = self._json_mode if json_schema is not None else "none"
         attempts = 0
@@ -255,6 +262,7 @@ class LLM:
                 purpose=purpose,
                 cycle_id=cycle_id,
             )
+            token = self.gate.reserve(estimate, cycle_id) if self.gate is not None else None
             started = self._clock()
             try:
                 async with self._semaphore:
@@ -262,17 +270,20 @@ class LLM:
                     response = await self.provider.complete(request)
             except ProviderError as exc:
                 latency = int((self._clock() - started) * 1000)
+                self._record(request, None, exc, latency, Cost(llm_requests=1), cycle_id)
                 if exc.bad_response_format and json_mode != "none":
                     log.info("provider rejected response_format; disabling JSON mode")
                     self._json_mode = "none"
                     json_mode = "none"
                     continue
-                self._record(request, None, exc, latency, Cost(llm_requests=1), cycle_id)
                 if not exc.retryable or attempts > self.settings.max_retries:
                     raise
                 await self._sleep(delay + random.uniform(0, delay / 2))
                 delay = min(delay * 2, 30.0)
                 continue
+            finally:
+                if token is not None and self.gate is not None:
+                    self.gate.release(token)
             latency = int((self._clock() - started) * 1000)
             cost = self._cost(model, request, response)
             self._record(request, response, None, latency, cost, cycle_id)

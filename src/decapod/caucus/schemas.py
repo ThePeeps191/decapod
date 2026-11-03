@@ -26,6 +26,11 @@ class ProposalDraft(_Out):
     def _clamp(cls, value: float) -> float:
         return max(0.0, min(1.0, float(value)))
 
+    @field_validator("wait_minutes")
+    @classmethod
+    def _wait(cls, value: float | None) -> float | None:
+        return None if value is None else max(0.0, float(value))
+
     @field_validator("args", mode="before")
     @classmethod
     def _args(cls, value: Any) -> Any:
@@ -104,6 +109,11 @@ class ExecutiveChoice(_Out):
     rationale: str = ""
     wait_minutes: float | None = None
     wake_on: list[str] = Field(default_factory=list)
+
+    @field_validator("wait_minutes")
+    @classmethod
+    def _wait(cls, value: float | None) -> float | None:
+        return None if value is None else max(0.0, float(value))
 
 
 class Confirmation(_Out):

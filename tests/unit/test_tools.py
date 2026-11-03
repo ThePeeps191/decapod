@@ -174,6 +174,10 @@ async def test_check_url_blocks_private_addresses():
         "http://127.0.0.1/",
         "http://10.0.0.5/x",
         "http://[::1]/",
+        "http://100.100.100.200/latest/meta-data/",
+        "http://169.254.169.254/",
+        "http://[::ffff:127.0.0.1]/",
+        "http://192.0.2.1/",
         "http://localhost/",
         "ftp://example.com/",
         "http:///nohost",
@@ -475,7 +479,18 @@ async def test_bwrap_sandbox_isolation(tmp_path):
         "pathlib.Path('out.txt').write_text('hi')\n"
         "try:\n    pathlib.Path('/etc/decapod-test').write_text('x'); print('etc writable')\n"
         "except OSError:\n    print('etc blocked')\n"
+        "try:\n    s = socket.socket(socket.AF_UNIX); s.connect(SOCK); print('socket open')\n"
+        "except OSError:\n    print('socket blocked')\n"
     )
+    import socket as socket_mod
+    import tempfile
+
+    sock_dir = tempfile.mkdtemp(dir="/var/tmp")
+    sock_path = f"{sock_dir}/host.sock"
+    server = socket_mod.socket(socket_mod.AF_UNIX)
+    server.bind(sock_path)
+    server.listen(1)
+    code = f"SOCK = {sock_path!r}\n" + code
     result = await run_python(
         code, workdir=root / "drive" / "sandbox", instance_root=root, timeout_s=20, isolation="auto"
     )

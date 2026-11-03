@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from importlib import resources
@@ -15,6 +16,11 @@ from decapod.config.providers import AUTO_ORDER, PRESETS, has_key, provider_conf
 from decapod.config.secrets import user_env_file
 from decapod.config.settings import LLMSettings
 from decapod.domain import Tier
+
+
+def toml_string(value: str) -> str:
+    """A TOML basic string (JSON string escaping is valid TOML)."""
+    return json.dumps(value, ensure_ascii=False)
 
 
 def example_charters() -> dict[str, str]:
@@ -40,7 +46,7 @@ def charter_summary(text: str) -> str:
 def render_config(name: str, provider: str | None, models: dict[Tier, str] | None) -> str:
     template = config_template()
     if provider:
-        provider_line = f'default_provider = "{provider}"'
+        provider_line = f"default_provider = {toml_string(provider)}"
     else:
         provider_line = (
             '# default_provider = "anthropic"   # unset: the first provider whose API key is found'
@@ -50,13 +56,13 @@ def render_config(name: str, provider: str | None, models: dict[Tier, str] | Non
     for tier in Tier:
         model = (models or {}).get(tier)
         if model:
-            tier_lines.append(f'{tier.value} = "{model}"')
+            tier_lines.append(f"{tier.value} = {toml_string(model)}")
         else:
             default = preset.models.get(tier) if preset else None
             hint = f'"{default}"' if default else '"<provider>:<model>"'
             tier_lines.append(f"# {tier.value} = {hint}")
     return (
-        template.replace("@@NAME@@", name)
+        template.replace('"@@NAME@@"', toml_string(name))
         .replace("@@PROVIDER@@", provider_line)
         .replace("@@TIERS@@", "\n".join(tier_lines))
     )
@@ -196,10 +202,10 @@ def _set_name(charter_text: str, name: str) -> str:
         if stripped.startswith("["):
             in_identity = stripped == "[identity]"
         elif in_identity and stripped.startswith("name"):
-            lines[i] = f'name = "{name}"'
+            lines[i] = f"name = {toml_string(name)}"
             return "\n".join(lines) + "\n"
     for i, line in enumerate(lines):
         if line.strip() == "[identity]":
-            lines.insert(i + 1, f'name = "{name}"')
+            lines.insert(i + 1, f"name = {toml_string(name)}")
             break
     return "\n".join(lines) + "\n"

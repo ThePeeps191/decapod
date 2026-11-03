@@ -613,14 +613,19 @@ class DecapodTUI(App[None]):
         ):
             self.send(ControlCommand.KILL, "killed from the TUI")
 
-    def resolve_approval(self, approve: bool, edited: dict[str, Any] | None = None) -> None:
-        if self.selected_approval is None:
+    def resolve_approval(
+        self,
+        approve: bool,
+        edited: dict[str, Any] | None = None,
+        approval_id: int | None = None,
+    ) -> None:
+        target = approval_id if approval_id is not None else self.selected_approval
+        if target is None:
             self.notify("No approval selected.", severity="warning")
             return
+        self.selected_approval = target
         try:
-            Approvals(self.db, self.events).resolve(
-                self.selected_approval, approve, by="tui", edited_args=edited
-            )
+            Approvals(self.db, self.events).resolve(target, approve, by="tui", edited_args=edited)
         except (KeyError, ValueError) as exc:
             self.notify(str(exc), severity="error")
             return
@@ -635,7 +640,8 @@ class DecapodTUI(App[None]):
         if self.selected_approval is None:
             self.notify("No approval selected.", severity="warning")
             return
-        approval = Approvals(self.db).get(self.selected_approval)
+        approval_id = self.selected_approval  # pinned: the list may change while editing
+        approval = Approvals(self.db).get(approval_id)
         if approval is None:
             return
         text = await self.push_screen_wait(
@@ -654,7 +660,7 @@ class DecapodTUI(App[None]):
         except ValueError as exc:
             self.notify(f"Invalid JSON: {exc}", severity="error")
             return
-        self.resolve_approval(True, edited)
+        self.resolve_approval(True, edited, approval_id=approval_id)
 
 
 def run_tui(paths: InstancePaths) -> int:

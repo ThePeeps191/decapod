@@ -26,8 +26,8 @@ The policy engine decides whether each call runs, needs approval or is denied. `
 | `code.run` | 2 | `code.run` | bubblewrap sandbox (see `docs/safety.md`) |
 | `email.list`, `email.read` | 1 | `email.read` | IMAP; needs `[tools.email]` and credentials |
 | `email.reply`, `email.send` | 3 | `email.send` | SMTP, disclosure footer, reply-only policy |
-| `github.list_issues`, `github.read_issue`, `github.read_file` | 1 | `github:OWNER/REPO.read` | Needs `[tools.github]` and `GITHUB_TOKEN` |
-| `github.create_issue`, `github.comment`, `github.write_file` | 3 | `github:OWNER/REPO.write` | Disclosure footer, plus a note in the commit message |
+| `github.list_issues`, `github.read_issue`, `github.read_file` | 1 | `github:OWNER/REPO:read` | Needs `[tools.github]` and `GITHUB_TOKEN` |
+| `github.create_issue`, `github.comment`, `github.write_file` | 3 | `github:OWNER/REPO:write` | Disclosure footer, plus a note in the commit message |
 
 Anything a tool returns from the outside world is marked as untrusted content.
 

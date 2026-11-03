@@ -1,10 +1,17 @@
-"""GitHub access via the REST API. Scopes are per repository: ``github:owner/repo.read|write``."""
+"""GitHub access via the REST API.
+
+Scopes are per repository: ``github:owner/repo:read`` and ``github:owner/repo:write``. The
+colon separator means a glob like ``github:me/notes:*`` cannot match another repository
+(``me/notes.evil``), and file paths are validated so they cannot climb out of the repository
+the scope was granted for.
+"""
 
 from __future__ import annotations
 
 import base64
 import re
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from pydantic import Field, field_validator
@@ -15,6 +22,22 @@ from decapod.tools.base import Tool, ToolArgs, ToolContext
 from decapod.util.text import one_line, truncate
 
 _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+
+def safe_path(path: str) -> str:
+    """A repository-relative path, percent-encoded per segment; refuses traversal."""
+    parts = [p for p in path.strip().strip("/").split("/") if p]
+    if not parts:
+        raise ValueError("path must name a file in the repository")
+    for part in parts:
+        if part in (".", "..") or any(ch in part for ch in "?#%\\") or "\x00" in part:
+            raise ValueError(f"invalid path segment {part!r}")
+    return "/".join(quote(part, safe="") for part in parts)
+
+
+def _validate_path(cls: Any, value: str) -> str:
+    safe_path(value)  # raises ValueError -> a validation error -> policy denial
+    return value
 
 
 class RepoArgs(ToolArgs):
@@ -32,7 +55,7 @@ class _GitHubTool(Tool):
     access = "read"
 
     def scopes(self, args: Any) -> list[str]:
-        return [f"github:{args.repo}.{self.access}"]
+        return [f"github:{args.repo}:{self.access}"]
 
     def unavailable_reason(self, settings: Settings, secrets: Secrets) -> str | None:
         cfg = settings.tools.github
@@ -141,6 +164,8 @@ class ReadFileArgs(RepoArgs):
     path: str
     ref: str | None = None
 
+    _path = field_validator("path")(_validate_path)
+
 
 class ReadFile(_GitHubTool):
     name = "github.read_file"
@@ -152,7 +177,7 @@ class ReadFile(_GitHubTool):
     async def run(self, args: ReadFileArgs, ctx: ToolContext) -> ToolResult:
         params = {"ref": args.ref} if args.ref else None
         response = await self.request(
-            ctx, "GET", f"/repos/{args.repo}/contents/{args.path.lstrip('/')}", params=params
+            ctx, "GET", f"/repos/{args.repo}/contents/{safe_path(args.path)}", params=params
         )
         if response.status_code >= 400:
             return _error(response)
@@ -221,6 +246,7 @@ class Comment(_GitHubTool):
 
 class WriteFileArgs(RepoArgs):
     path: str = Field(min_length=1)
+    _path = field_validator("path")(_validate_path)
     content: str = Field(max_length=500_000)
     message: str = Field(min_length=3, max_length=500)
     branch: str | None = None
@@ -236,7 +262,7 @@ class WriteFile(_GitHubTool):
     outbound = True
 
     async def run(self, args: WriteFileArgs, ctx: ToolContext) -> ToolResult:
-        path = args.path.lstrip("/")
+        path = safe_path(args.path)
         params = {"ref": args.branch} if args.branch else None
         existing = await self.request(
             ctx, "GET", f"/repos/{args.repo}/contents/{path}", params=params

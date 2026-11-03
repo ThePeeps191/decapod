@@ -166,7 +166,7 @@ def _default_modes() -> dict[RiskTier, PolicyMode]:
 
 class PolicySettings(_Section):
     modes: dict[RiskTier, PolicyMode] = Field(default_factory=_default_modes)
-    #: Per-scope overrides, e.g. {"github:me/notes.write" = "auto"}. Glob patterns allowed.
+    #: Per-scope overrides, e.g. {"github:me/notes:write" = "auto"}. Glob patterns allowed.
     scope_modes: dict[str, PolicyMode] = Field(default_factory=dict)
     rate_limits: dict[str, RateLimit] = Field(
         default_factory=lambda: {

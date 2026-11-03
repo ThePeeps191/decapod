@@ -148,6 +148,12 @@ class Runtime:
 
         await self._phase(cycle_id, "act")
         outcome = await self.act(cycle_id, decision)
+        # Persist the outcome now: if the cycle is stopped or fails during reflection, the
+        # record must still say the action happened, so it is not repeated blindly.
+        inst.db.execute(
+            "UPDATE cycles SET result = ? WHERE id = ?",
+            (json_dumps(_outcome_record(outcome)), cycle_id),
+        )
 
         await self._phase(cycle_id, "reflect")
         await inst.reflector.reflect(context, decision, outcome)
@@ -175,15 +181,12 @@ class Runtime:
     ) -> None:
         inst = self.instance
         cost = inst.budget.spent_in_cycle(cycle_id)
-        result = None
+        result: dict[str, object] | None = None
         if outcome is not None:
-            result = {
-                "status": outcome.status,
-                "detail": outcome.detail,
-                "ok": outcome.ok,
-                "approval_id": outcome.approval_id,
-                "result": outcome.result.model_dump(mode="json") if outcome.result else None,
-            }
+            result = _outcome_record(outcome)
+        else:  # keep an outcome that was persisted right after acting
+            row = inst.db.query_one("SELECT result FROM cycles WHERE id = ?", (cycle_id,))
+            result = loads(row["result"], None) if row else None
         inst.db.execute(
             "UPDATE cycles SET status = ?, ended_at = ?, result = ?, cost = ?, error = ?, "
             "phase = ? WHERE id = ?",
@@ -446,6 +449,9 @@ class Runtime:
                 actor="policy",
                 cycle_id=cycle_id,
             )
+            if verdict.outcome != "allow" and verdict.transient:
+                # Rate limit, budget or shutdown: keep it approved and try again next cycle.
+                break
             if verdict.outcome == "allow":
                 result = await inst.executor.execute(
                     approval.action, ctx, idempotency_key=f"approval:{approval.id}"
@@ -456,3 +462,13 @@ class Runtime:
             executed += 1
             await inst.controller.checkpoint("perceive")
         return executed
+
+
+def _outcome_record(outcome: Outcome) -> dict[str, object]:
+    return {
+        "status": outcome.status,
+        "detail": outcome.detail,
+        "ok": outcome.ok,
+        "approval_id": outcome.approval_id,
+        "result": outcome.result.model_dump(mode="json") if outcome.result else None,
+    }

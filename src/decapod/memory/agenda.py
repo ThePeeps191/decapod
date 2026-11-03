@@ -258,8 +258,11 @@ class AgendaStore:
         for i, draft in enumerate(drafts, 1):
             graph.add_node(i)
             for dep in draft.depends_on:
-                if dep < 1 or dep > len(drafts) or dep == i:
-                    raise AgendaError(f"task {i} depends on invalid step {dep}")
+                if dep < 1 or dep >= i:
+                    raise AgendaError(
+                        f"task {i} depends on invalid step {dep} (a step may only depend on "
+                        "earlier steps)"
+                    )
                 graph.add_edge(dep, i)
         if not nx.is_directed_acyclic_graph(graph):
             raise AgendaError("plan dependencies contain a cycle")

@@ -150,3 +150,12 @@ def test_start_refuses_without_models(home, capsys):
     assert main(["init", "--yes", "--charter", "minimal"]) == 0
     assert main(["start"]) == 2
     assert "model configuration" in capsys.readouterr().err
+
+
+def test_init_name_is_escaped(home):
+    from decapod.config import InstanceConfig
+
+    assert main(["init", "--yes", "--charter", "minimal", "--name", 'Bob "the" bot\\']) == 0
+    config = InstanceConfig.load(home)
+    assert config.charter.name == 'Bob "the" bot\\'
+    assert config.settings.instance.name == 'Bob "the" bot\\'

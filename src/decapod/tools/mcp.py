@@ -258,7 +258,15 @@ class MCPManager:
                 await server.close()
                 continue
             self.servers.append(server)
-            tools.extend(make_mcp_tool(server, spec) for spec in server.tools)
+            seen: set[str] = set()
+            for spec in server.tools:
+                tool = make_mcp_tool(server, spec)
+                base, n = tool.name, 2
+                while tool.name in seen:  # e.g. "get.item" and "get_item" both sanitize alike
+                    type(tool).name = f"{base}_{n}"
+                    n += 1
+                seen.add(tool.name)
+                tools.append(tool)
         return tools
 
     async def close(self) -> None:

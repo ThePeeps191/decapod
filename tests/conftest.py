@@ -14,7 +14,7 @@ mission = "Research and publish notes about test topics."
 ranked = ["accuracy", "frugality"]
 
 [scopes]
-granted = ["web.read", "drive.*", "notes.*", "code.run", "email.*", "github:me/notes.*"]
+granted = ["web.read", "drive.*", "notes.*", "code.run", "email.*", "github:me/notes:*"]
 
 [prohibitions]
 rules = ["Never share secrets."]

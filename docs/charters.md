@@ -49,7 +49,7 @@ Scopes are glob patterns. A tool whose scopes are not all granted is hidden from
 | `web.read` | `web.search`, `web.fetch`, `feeds.read` |
 | `code.run` | `code.run` (sandboxed Python) |
 | `email.read`, `email.send` | `email.*` |
-| `github:OWNER/REPO.read`, `github:OWNER/REPO.write` | `github.*` for that repository only |
+| `github:OWNER/REPO:read`, `github:OWNER/REPO:write` | `github.*` for that repository only |
 | `mcp:NAME` | tools from the MCP server `NAME` |
 
 Internal tools (agenda, memory, self-status, clock, amendment proposals) need no scope.

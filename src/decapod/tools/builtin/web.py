@@ -51,15 +51,29 @@ async def check_url(url: str, *, allow_private: bool) -> None:
         raise BlockedAddress(f"cannot resolve {host}: {exc}") from None
     for info in infos:
         address = ipaddress.ip_address(info[4][0])
-        if (
-            address.is_private
-            or address.is_loopback
-            or address.is_link_local
-            or address.is_reserved
-            or address.is_multicast
-            or address.is_unspecified
-        ):
+        if not is_public(address):
             raise BlockedAddress(f"{host} resolves to a non-public address ({address})")
+
+
+def is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Globally routable only: excludes private, loopback, link-local, CGNAT, reserved,
+    multicast and documentation ranges, including IPv4 addresses mapped into IPv6."""
+    if isinstance(address, ipaddress.IPv6Address):
+        mapped = address.ipv4_mapped or address.sixtofour
+        if mapped is not None:
+            return is_public(mapped)
+    return address.is_global and not address.is_multicast
+
+
+def _peer_address(response: httpx.Response) -> str | None:
+    stream = response.extensions.get("network_stream")
+    if stream is None:
+        return None
+    try:
+        peer = stream.get_extra_info("server_addr")
+    except Exception:
+        return None
+    return str(peer[0]) if peer else None
 
 
 async def fetch(ctx: ToolContext, url: str, *, accept: str = "*/*") -> httpx.Response:
@@ -76,6 +90,12 @@ async def fetch(ctx: ToolContext, url: str, *, accept: str = "*/*") -> httpx.Res
         )
         response = await ctx.http.send(request, stream=True, follow_redirects=False)
         try:
+            if not web.allow_private_addresses:
+                # Re-check the address actually connected to: closes DNS-rebinding gaps
+                # between the check above and httpx's own resolution.
+                peer = _peer_address(response)
+                if peer is not None and not is_public(ipaddress.ip_address(peer)):
+                    raise BlockedAddress(f"connected to a non-public address ({peer})")
             if response.is_redirect and "location" in response.headers:
                 current = str(response.url.join(response.headers["location"]))
                 continue

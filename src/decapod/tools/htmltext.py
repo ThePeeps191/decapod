@@ -130,6 +130,11 @@ def html_to_text(
     markup: str, base_url: str | None = None
 ) -> tuple[str, str, list[tuple[str, str]]]:
     """Return (title, text, links)."""
+    # A truncated page can end inside a tag; parsers differ on whether that tail becomes
+    # text (it does on Python < 3.13), so drop it up front for consistent output.
+    last_open = markup.rfind("<")
+    if last_open > markup.rfind(">"):
+        markup = markup[:last_open]
     parser = _Extractor(base_url)
     try:
         parser.feed(markup)

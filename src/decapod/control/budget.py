@@ -58,6 +58,10 @@ class Budget:
         self.db = db
         self.settings = settings
         self.clock = clock
+        # In-flight spend that has been authorized but not settled yet: (cycle_id, cost).
+        # Counting it closes the gap where concurrent calls all see the same headroom.
+        self._reserved: dict[int, tuple[str | None, Cost]] = {}
+        self._next_token = 0
 
     # ------------------------------------------------------------------ windows
 
@@ -122,7 +126,7 @@ class Budget:
                 continue
             if window == "cycle" and cycle_id is None:
                 continue
-            used = self.usage(window, cycle_id)
+            used = self.usage(window, cycle_id) + self._pending(window, cycle_id)
             for metric, limit in limits:
                 if metric not in relevant:
                     continue
@@ -132,6 +136,23 @@ class Budget:
                 if over:
                     _, resets = self.window_bounds(window)
                     raise BudgetExceeded(window, metric, spent, limit, resets)
+
+    def _pending(self, window: str, cycle_id: str | None) -> Cost:
+        total = Cost()
+        for reserved_cycle, cost in self._reserved.values():
+            if window != "cycle" or reserved_cycle == cycle_id:
+                total = total + cost
+        return total
+
+    def reserve(self, estimate: Cost, cycle_id: str | None) -> int:
+        """Authorize ``estimate`` and hold it until ``release()``; returns a token."""
+        self.authorize(estimate, cycle_id)
+        self._next_token += 1
+        self._reserved[self._next_token] = (cycle_id, estimate)
+        return self._next_token
+
+    def release(self, token: int) -> None:
+        self._reserved.pop(token, None)
 
     def record(self, kind: str, cost: Cost, cycle_id: str | None) -> None:
         if cost == Cost():

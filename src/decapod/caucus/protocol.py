@@ -68,6 +68,19 @@ async def _no_checkpoint(_: str) -> None:
     return None
 
 
+async def _gather(*aws: Any) -> list[Any]:
+    """Like asyncio.gather, but if one task fails the others are cancelled, so no model
+    call outlives a halted, killed or over-budget cycle."""
+    tasks = [asyncio.ensure_future(a) for a in aws]
+    try:
+        return list(await asyncio.gather(*tasks))
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+
+
 class Caucus:
     def __init__(
         self,
@@ -245,29 +258,32 @@ class Caucus:
     ) -> Decision:
         self._counter = 0
         decision = await self._run(ctx, level, reasons or [])
-        if decision.chosen is not None:
+        # Re-deliberate while the chosen action's risk tier demands a deeper debate. The
+        # level strictly increases each time (and is capped by max_level), so this ends.
+        while decision.chosen is not None:
             required = self.settings.escalate_on_tier.get(decision.chosen.risk_tier, Level.L0)
             required = clamp(required, self.settings)
-            if required > decision.level:
-                self._emit(
-                    ctx,
-                    "caucus.escalate",
-                    f"{decision.describe()} is tier {int(decision.chosen.risk_tier)}: "
-                    f"re-deliberating at {required.name}",
-                    {
-                        "from": decision.level.name,
-                        "to": required.name,
-                        "candidate": decision.chosen.model_dump(mode="json"),
-                    },
-                )
-                decision = await self._run(
-                    ctx,
-                    required,
-                    [
-                        f"escalated: the {decision.level.name} caucus chose "
-                        f"{decision.describe()} (tier {int(decision.chosen.risk_tier)})"
-                    ],
-                )
+            if required <= decision.level:
+                break
+            self._emit(
+                ctx,
+                "caucus.escalate",
+                f"{decision.describe()} is tier {int(decision.chosen.risk_tier)}: "
+                f"re-deliberating at {required.name}",
+                {
+                    "from": decision.level.name,
+                    "to": required.name,
+                    "candidate": decision.chosen.model_dump(mode="json"),
+                },
+            )
+            decision = await self._run(
+                ctx,
+                required,
+                [
+                    f"escalated: the {decision.level.name} caucus chose "
+                    f"{decision.describe()} (tier {int(decision.chosen.risk_tier)})"
+                ],
+            )
         self._emit(
             ctx,
             "caucus.decision",
@@ -293,9 +309,14 @@ class Caucus:
             decision = await self._reflex(ctx)
             if decision is not None:
                 return decision
-            return await self._run(
-                ctx, clamp(Level.L1, self.settings), ["reflex path declined; quick deliberation"]
-            )
+            fallback = clamp(Level.L1, self.settings)
+            if fallback is Level.L0:  # max_level = L0: there is no deeper level to fall back to
+                return Decision(
+                    cycle_id=ctx.cycle_id,
+                    level=Level.L0,
+                    rationale="The reflex path declined and deliberation is capped at L0; waiting.",
+                )
+            return await self._run(ctx, fallback, ["reflex path declined; quick deliberation"])
 
         # Round 1: propose ------------------------------------------------------------
         proposals = await self._propose(ctx, self.roster.proposers(level), level)
@@ -417,7 +438,7 @@ class Caucus:
             )
             return spec, result
 
-        results = await asyncio.gather(*(one(s) for s in specs))
+        results = await _gather(*(one(s) for s in specs))
         proposals: list[Proposal] = []
         seen: dict[str, Proposal] = {}
         for spec, result in results:
@@ -472,7 +493,7 @@ class Caucus:
             )
 
         critiques: list[Critique] = []
-        for spec, result in await asyncio.gather(*(one(s) for s in specs)):
+        for spec, result in await _gather(*(one(s) for s in specs)):
             if result is None:
                 continue
             for draft in result.critiques:
@@ -539,7 +560,7 @@ class Caucus:
                 catalog=ctx.catalog,
             )
 
-        results = await asyncio.gather(*(one(r, own) for r, own in by_author.items()))
+        results = await _gather(*(one(r, own) for r, own in by_author.items()))
         updated = {p.id: p for p in proposals}
         for role, result in results:
             if result is None:
@@ -605,7 +626,7 @@ class Caucus:
                 own_ids=", ".join(own),
             )
 
-        for spec, result in await asyncio.gather(*(one(s) for s in rankers)):
+        for spec, result in await _gather(*(one(s) for s in rankers)):
             if result is None:
                 continue
             own = {p.id for p in proposals if spec.role in p.author_role.split("+")}
@@ -664,7 +685,7 @@ class Caucus:
             )
 
         reports: list[ChamberReport] = []
-        for spec, result in await asyncio.gather(*(one(s) for s in self.roster.managers())):
+        for spec, result in await _gather(*(one(s) for s in self.roster.managers())):
             if result is None:
                 continue
             report = ChamberReport(

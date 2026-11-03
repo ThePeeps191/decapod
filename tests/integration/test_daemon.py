@@ -171,3 +171,43 @@ async def test_replay_reproduces_a_recorded_cycle(tmp_path):
 
     with _pytest.raises(KeyError):
         await replay_cycle(config, "c99999")
+
+
+async def test_transiently_blocked_approvals_stay_approved(tmp_path):
+    from decapod.domain import ApprovalStatus
+    from decapod.runtime import Runtime
+
+    config, instance = make_instance(tmp_path)
+    config.settings.budget.cycle.tool_calls = 2
+    await instance.start()
+    ids = [
+        instance.approvals.enqueue(ActionSpec(tool="clock.now"), {}, "test", None).id
+        for _ in range(4)
+    ]
+    for approval_id in ids:
+        instance.approvals.resolve(approval_id, True)
+    executed = await Runtime(instance).execute_approved("c00001")
+    statuses = [instance.approvals.get(i).status for i in ids]
+    assert executed == 2
+    assert statuses == [ApprovalStatus.EXECUTED] * 2 + [ApprovalStatus.APPROVED] * 2
+    await instance.close()
+
+
+async def test_outcome_survives_a_stop_during_reflection(tmp_path):
+    from decapod.domain import Halted
+    from decapod.runtime import Runtime
+    from decapod.storage import loads
+
+    config, instance = make_instance(tmp_path)
+    await instance.start()
+
+    async def stop_now(*args, **kwargs):
+        raise Halted("operator stop")
+
+    instance.reflector.reflect = stop_now
+    with pytest.raises(Halted):
+        await Runtime(instance).run_cycle()
+    row = instance.db.query_one("SELECT status, result FROM cycles")
+    assert row["status"] == "halted"
+    assert loads(row["result"], {})["status"] == "executed"
+    await instance.close()

@@ -36,6 +36,25 @@ def one_line(text: str, max_chars: int = 160) -> str:
     return flat[: max(0, max_chars - 1)] + "…"
 
 
+def string_leaves(value: Any) -> list[str]:
+    """Every string (keys included) inside nested dicts/lists, unescaped."""
+    out: list[str] = []
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            out.append(item)
+        elif isinstance(item, dict):
+            for key, val in item.items():
+                out.append(str(key))
+                stack.append(val)
+        elif isinstance(item, list | tuple | set):
+            stack.extend(item)
+        elif item is not None:
+            out.append(str(item))
+    return out
+
+
 def json_dumps(value: Any, *, indent: int | None = None) -> str:
     """JSON-encode with sane defaults for Decapod payloads (datetimes, sets, models)."""
     return json.dumps(value, default=_json_default, ensure_ascii=False, indent=indent)

@@ -124,6 +124,13 @@ async def test_cost_and_recording(tmp_path):
         def authorize(self, estimate, cycle_id):
             assert estimate.llm_requests == 1
 
+        def reserve(self, estimate, cycle_id):
+            self.authorize(estimate, cycle_id)
+            return 1
+
+        def release(self, token):
+            pass
+
         def record(self, kind, cost, cycle_id):
             self.recorded.append(cost)
 
@@ -145,6 +152,12 @@ async def test_budget_preauthorization_blocks_call():
     class Gate:
         def authorize(self, estimate, cycle_id):
             raise BudgetExceeded("daily", "llm_requests", 10, 10)
+
+        def reserve(self, estimate, cycle_id):
+            return self.authorize(estimate, cycle_id)
+
+        def release(self, token):
+            pass
 
         def record(self, kind, cost, cycle_id):
             raise AssertionError("must not record")
@@ -188,4 +201,39 @@ async def test_llm_call_log_is_redacted(tmp_path):
     await llm.chat([Message.user("echo sekrit-value")], tier=Tier.FLASH, purpose="r")
     row = db.query_one("SELECT request, response FROM llm_calls")
     assert "sekrit" not in row["request"] and "sekrit" not in row["response"]
+    db.close()
+
+
+async def test_concurrent_calls_cannot_overshoot_budget(tmp_path):
+    import asyncio
+
+    from decapod.config.settings import BudgetLimits, BudgetSettings
+    from decapod.control import Budget
+
+    db = Database(tmp_path / "b.db")
+    budget = Budget(
+        db,
+        BudgetSettings(
+            cycle=BudgetLimits(),
+            hourly=BudgetLimits(),
+            daily=BudgetLimits(),
+            lifetime=BudgetLimits(llm_requests=2),
+        ),
+    )
+
+    provider = ScriptedProvider({"c": "ok"})
+    original = provider.complete
+
+    async def complete(request):
+        await asyncio.sleep(0.01)
+        return await original(request)
+
+    provider.complete = complete
+    llm = LLM(LLMSettings(fallbacks={}), provider, gate=budget, sleep=no_sleep)
+    results = await asyncio.gather(
+        *(llm.chat(MSGS, tier=Tier.FLASH, purpose="c") for _ in range(8)), return_exceptions=True
+    )
+    assert sum(not isinstance(r, Exception) for r in results) == 2
+    assert all(isinstance(r, BudgetExceeded) for r in results if isinstance(r, Exception))
+    assert budget.usage("lifetime").llm_requests == 2
     db.close()

@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from decapod.tools import ToolContext
 
 log = logging.getLogger(__name__)
+SENSOR_TIMEOUT_S = 60.0
 
 
 def _due(instance: Instance, sensor: str, interval: timedelta) -> bool:
@@ -200,7 +201,9 @@ async def feed_percepts(instance: Instance, ctx: ToolContext) -> list[Percept]:
 
 
 async def email_percepts(instance: Instance, ctx: ToolContext) -> list[Percept]:
-    if instance.registry.get("email.list") is None:
+    if instance.registry.get("email.list") is None or not instance.policy.scope_granted(
+        "email.read"
+    ):
         return []
     if not _due(instance, "email", instance.settings.tools.email.poll_interval):
         return []
@@ -240,6 +243,11 @@ async def perceive(
     percepts += approval_percepts(instance)
     percepts += budget_percepts(instance)
     percepts += denial_percepts(instance)
-    percepts += await feed_percepts(instance, ctx)
-    percepts += await email_percepts(instance, ctx)
+    # Sensors are best-effort and bounded: a slow feed or mail server cannot hold up a cycle
+    # (or a stop) for long.
+    for sensor in (feed_percepts, email_percepts):
+        try:
+            percepts += await asyncio.wait_for(sensor(instance, ctx), timeout=SENSOR_TIMEOUT_S)
+        except TimeoutError:
+            log.info("sensor %s timed out", sensor.__name__)
     return percepts

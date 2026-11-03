@@ -2,8 +2,10 @@
 
 Isolation levels:
 
-* ``bwrap`` – bubblewrap: read-only system, the instance directory and home are masked,
-  only the sandbox folder is writable, network unshared unless allowed. Linux only.
+* ``bwrap`` – bubblewrap: read-only system; home, the instance directory and the usual
+  Unix-socket directories (/tmp, /run, /var/run, /var/tmp) are replaced with empty tmpfs;
+  only the sandbox folder is writable; all namespaces unshared (network too, unless
+  allowed). Linux only.
 * ``none`` – a plain subprocess with a scrubbed environment and resource limits. This is
   NOT a security boundary; the operator must opt in to it explicitly.
 
@@ -127,20 +129,26 @@ async def run_python(
         masks: list[str] = []
         home = Path.home().resolve()
         root = instance_root.resolve()
+        # Directories that commonly hold Unix sockets (docker, D-Bus, systemd, X11, ...).
+        # A read-only bind does not stop connect(), so they are replaced with empty tmpfs.
+        socket_dirs = [
+            p
+            for p in (Path("/tmp"), Path("/run"), Path("/var/run"), Path("/var/tmp"))
+            if p.is_dir() and not p.is_symlink()
+        ]
+        hidden: list[Path] = [*socket_dirs]
         for masked in (home, root):
-            if masked == Path("/"):
-                continue
-            if masked != home and home in masked.parents:
-                continue  # already hidden by the home mask
-            masks += ["--tmpfs", str(masked)]
-        # The interpreter may live under a masked directory (e.g. a venv in $HOME):
+            if masked == Path("/") or any(h == masked or h in masked.parents for h in hidden):
+                continue  # already hidden by an enclosing mask
+            hidden.append(masked)
+        masks += [arg for path in hidden for arg in ("--tmpfs", str(path))]
+        # The interpreter may live under a masked directory (e.g. a venv in $HOME or /tmp):
         # re-expose just the Python installation, read-only.
         runtime_dirs = {
             Path(sys.prefix).resolve(),
             Path(sys.base_prefix).resolve(),
             Path(os.path.realpath(sys.executable)).parent,
         }
-        hidden = (Path("/tmp").resolve(), home, root)
         for runtime in sorted(runtime_dirs):
             if any(m == runtime or m in runtime.parents for m in hidden):
                 masks += ["--ro-bind", str(runtime), str(runtime)]
@@ -153,8 +161,6 @@ async def run_python(
             "/dev",
             "--proc",
             "/proc",
-            "--tmpfs",
-            "/tmp",
             *masks,
             "--bind",
             str(workdir.resolve()),

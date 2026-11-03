@@ -13,9 +13,9 @@ from pydantic import ValidationError
 
 from decapod.config import Secrets, Settings
 from decapod.control import ToolCheck
-from decapod.domain import ActionSpec, Cost, RiskTier, ToolResult
+from decapod.domain import ActionSpec, Cost, RiskTier, SideEffect, ToolResult
 from decapod.tools.base import Tool, ToolArgs, ToolContext
-from decapod.util.text import json_dumps, one_line, truncate
+from decapod.util.text import json_dumps, one_line, string_leaves, truncate
 from decapod.util.timeutil import now, to_iso
 
 log = logging.getLogger(__name__)
@@ -157,10 +157,15 @@ class ToolExecutor:
                     data={"replayed": True},
                 )
 
-        if tool.outbound:
-            leaked = _find_secret(json_dumps(action.args), ctx.secrets)
-            if leaked:
-                return ToolResult.failure("refused: arguments contain a configured secret value")
+        # Anything that reaches the outside world (even a search query) must not carry a
+        # secret out. Check raw values: JSON escaping could hide quotes or backslashes.
+        external = tool.outbound or tool.side_effect in (
+            SideEffect.EXTERNAL_READ,
+            SideEffect.EXTERNAL_WRITE,
+            SideEffect.IRREVERSIBLE,
+        )
+        if external and _find_secret(action.args, ctx.secrets):
+            return ToolResult.failure("refused: arguments contain a configured secret value")
 
         started = time.monotonic()
         call_id = ctx.db.insert(
@@ -230,8 +235,9 @@ class ToolExecutor:
         return result
 
 
-def _find_secret(text: str, secrets: Secrets) -> bool:
-    return any(value in text for value in secrets.values_for_scrubbing())
+def _find_secret(args: Any, secrets: Secrets) -> bool:
+    values = secrets.values_for_scrubbing()
+    return any(value in text for text in string_leaves(args) for value in values)
 
 
 def describe_result(result: ToolResult, max_chars: int = 3000) -> str:

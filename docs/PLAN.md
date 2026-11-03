@@ -424,7 +424,7 @@ class Tool(Protocol):
     args_model: type[BaseModel]
     risk_tier: RiskTier
     side_effects: SideEffect      # NONE | LOCAL | EXTERNAL_READ | EXTERNAL_WRITE | IRREVERSIBLE
-    scopes: list[str]             # e.g. ["web.read"], ["email.send"], ["github:org/repo.write"]
+    scopes: list[str]             # e.g. ["web.read"], ["email.send"], ["github:org/repo:write"]
     async def run(self, args, ctx: ToolContext) -> ToolResult: ...
 ```
 
@@ -438,7 +438,7 @@ class Tool(Protocol):
 | **3 External write** | send email, post publicly, open PR, comment | Allowed only if the scope is in the charter, with daily caps. **Approval required** by default until the operator relaxes it |
 | **4 Irreversible / high impact** | deploy to production, delete external data, spend money, create accounts | **Always requires approval** in v1, and denied outright unless the charter grants the scope |
 
-The operator can move tools between "auto" and "approval" per scope (e.g. allow `github:me/blog.write` automatically). The "fully autonomous, no human in the loop" mode is just that config at its most permissive. It's still bounded by budgets and charter prohibitions.
+The operator can move tools between "auto" and "approval" per scope (e.g. allow `github:me/blog:write` automatically). The "fully autonomous, no human in the loop" mode is just that config at its most permissive. It's still bounded by budgets and charter prohibitions.
 
 **Built-in tools for v1:**
 `web.search`, `web.fetch` (readable-text extraction), `drive.read/write/list` (sandboxed), `code.run` (Python in a subprocess with timeout, no network by default, cwd locked to drive), `notes.publish` (writes Markdown to a drive folder, the safe way to "publish"), `clock.now`, `self.status` (own budget/agenda), `agenda.*`, `memory.*`.

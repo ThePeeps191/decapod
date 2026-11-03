@@ -137,7 +137,7 @@ ACT = ActionSpec(tool="web.fetch", args={"url": "https://example.com"})
                 name="github.comment",
                 tier=RiskTier.EXTERNAL_WRITE,
                 side=SideEffect.EXTERNAL_WRITE,
-                scopes=["github:someone/else.write"],
+                scopes=["github:someone/else:write"],
             ),
             ActionSpec(tool="github.comment", args={}),
             "deny",
@@ -333,3 +333,19 @@ async def test_pause_is_not_overridden_by_scheduler_states(db, events):
     assert ctl.state is RunState.PAUSED
     ctl.resume()
     assert ctl.state is RunState.RUNNING
+
+
+@pytest.mark.skipif(__import__("sys").platform == "win32", reason="flock is POSIX")
+def test_pidfile_lock(tmp_path):
+    from decapod.daemon import AlreadyRunning, PidFile, running_pid
+
+    path = tmp_path / "decapod.pid"
+    first = PidFile(path)
+    first.acquire()
+    assert running_pid(path) == __import__("os").getpid()
+    with pytest.raises(AlreadyRunning):
+        PidFile(path).acquire()
+    first.release()
+    assert running_pid(path) is None
+    path.write_text("1")  # stale file naming a live, unrelated process (init)
+    assert running_pid(path) is None
