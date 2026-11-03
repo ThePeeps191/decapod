@@ -129,8 +129,19 @@ class Goal(Model):
     rationale: str = ""
     charter_refs: list[str] = Field(default_factory=list)
     progress_note: str = ""
+    #: Recurring goals reopen this many seconds after each completion.
+    every_seconds: float | None = None
+    #: Optional deadline.
+    due_at: datetime | None = None
+    #: When a completed recurring goal reopens.
+    next_due: datetime | None = None
+    completions: int = 0
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
+
+    @property
+    def recurring(self) -> bool:
+        return bool(self.every_seconds)
 
     @field_validator("priority")
     @classmethod

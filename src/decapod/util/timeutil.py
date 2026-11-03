@@ -77,3 +77,21 @@ def format_duration(delta: timedelta | float) -> str:
     else:
         out = f"{secs}s"
     return f"-{out}" if negative else out
+
+
+def parse_when(value: str, reference: datetime | None = None) -> datetime:
+    """A moment from an ISO date/datetime ("2026-12-01", "2026-12-01T09:00") or an offset
+    from now ("3d", "12h"). Naive times are taken as UTC."""
+    text = value.strip()
+    base = reference or now()
+    try:
+        return base + parse_duration(text)
+    except ValueError:
+        pass
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        raise ValueError(f"not a date, datetime or duration: {value!r}") from None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment

@@ -193,6 +193,18 @@ CREATE TABLE IF NOT EXISTS sensor_seen (
     ),
 ]
 
+MIGRATIONS.append(
+    (
+        2,
+        """
+ALTER TABLE goals ADD COLUMN every_seconds REAL;
+ALTER TABLE goals ADD COLUMN due_at TEXT;
+ALTER TABLE goals ADD COLUMN next_due TEXT;
+ALTER TABLE goals ADD COLUMN completions INTEGER NOT NULL DEFAULT 0;
+""",
+    )
+)
+
 FTS_SCHEMA = """
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
     USING fts5(content, tags, content='memories', content_rowid='id');

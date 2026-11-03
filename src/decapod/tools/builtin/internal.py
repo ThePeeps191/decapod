@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from pydantic import Field
 
 from decapod.domain import GoalStatus, MemoryKind, TaskStatus, ToolResult
 from decapod.memory import AgendaError, TaskDraft
+from decapod.memory.agenda import schedule_text
 from decapod.tools.base import NoArgs, Tool, ToolArgs, ToolContext
 from decapod.util.text import one_line
-from decapod.util.timeutil import format_duration, now, to_iso
+from decapod.util.timeutil import format_duration, now, parse_duration, parse_when, to_iso
 
 
 class AddGoalArgs(ToolArgs):
@@ -24,6 +25,16 @@ class AddGoalArgs(ToolArgs):
     )
     rationale: str = ""
     parent_id: int | None = None
+    every: str | None = Field(
+        default=None, description="make it recurring, e.g. '7d' (at most hourly)"
+    )
+    due: str | None = Field(default=None, description="deadline: '2026-12-01' or '3d'")
+
+
+def _schedule(every: str | None, due: str | None) -> tuple[timedelta | None, datetime | None]:
+    interval = parse_duration(every) if every else None
+    deadline = parse_when(due) if due else None
+    return interval, deadline
 
 
 class AddGoal(Tool):
@@ -41,12 +52,21 @@ class AddGoal(Tool):
         open_titles = {g.title.lower() for g in ctx.agenda.goals(open_only=True)}
         if args.title.strip().lower() in open_titles:
             return "an open goal with this title already exists"
+        try:
+            interval, _ = _schedule(args.every, args.due)
+        except ValueError as exc:
+            return str(exc)
+        if interval is not None and interval.total_seconds() < 3600:
+            return "a recurring goal may repeat at most once an hour"
         return None
 
     async def run(self, args: AddGoalArgs, ctx: ToolContext) -> ToolResult:
+        interval, deadline = _schedule(args.every, args.due)
         goal = ctx.agenda.add_goal(
             args.title,
             args.description,
+            every=interval,
+            due_at=deadline,
             success_criteria=args.success_criteria,
             priority=args.priority,
             rationale=args.rationale,
@@ -63,6 +83,9 @@ class UpdateGoalArgs(ToolArgs):
     priority: float | None = Field(default=None, ge=0, le=1)
     progress_note: str | None = None
     description: str | None = None
+    every: str | None = Field(default=None, description="set recurrence, e.g. '7d'")
+    due: str | None = Field(default=None, description="set a deadline: '2026-12-01' or '3d'")
+    clear_schedule: bool = False
 
 
 class UpdateGoal(Tool):
@@ -73,6 +96,12 @@ class UpdateGoal(Tool):
     def precheck(self, args: UpdateGoalArgs, ctx: ToolContext) -> str | None:
         if ctx.agenda.get_goal(args.goal_id) is None:
             return f"goal G{args.goal_id} does not exist"
+        try:
+            interval, _ = _schedule(args.every, args.due)
+        except ValueError as exc:
+            return str(exc)
+        if interval is not None and interval.total_seconds() < 3600:
+            return "a recurring goal may repeat at most once an hour"
         return None
 
     async def run(self, args: UpdateGoalArgs, ctx: ToolContext) -> ToolResult:
@@ -82,10 +111,15 @@ class UpdateGoal(Tool):
             priority=args.priority,
             progress_note=args.progress_note,
             description=args.description,
+            every=parse_duration(args.every) if args.every else None,
+            due_at=parse_when(args.due) if args.due else None,
+            clear_schedule=args.clear_schedule,
             cycle_id=ctx.cycle_id,
         )
+        schedule = schedule_text(goal)
         return ToolResult.success(
             f"{goal.ref} is now {goal.status.value} (priority {goal.priority:.2f})"
+            + (f"; {schedule}" if schedule else "")
         )
 
 
