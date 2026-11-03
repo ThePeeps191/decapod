@@ -48,6 +48,10 @@ Decapod was written entirely in Python with the following dependencies:
 
 Decapod is built around the internal caucus, which is a committee-of-experts that are split up into various specialists that do everything from reflecting on past actions and what to improve on to designing goals for itself and planning how to execute them. Managers coordinate and summarize discussions/debates from the specialists, and an executive master agent decides based off of the managers' reports what Decapod should do next, while also organizing internal planning.
 
+## Roadmap & Design
+
+The full architecture, safety model, and milestone roadmap live in [docs/PLAN.md](docs/PLAN.md).
+
 ## License
 
 Apache 2.0 - Danny Wang
