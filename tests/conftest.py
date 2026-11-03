@@ -42,3 +42,38 @@ def db(tmp_path):
 @pytest.fixture
 def events(db):
     return EventLog(db, EventBus())
+
+
+@pytest.fixture
+def make_ctx(tmp_path, db, events, settings, charter):
+    """Build a ToolContext; pass an httpx handler to fake the network."""
+    import httpx
+
+    from decapod.config import InstancePaths, Secrets
+    from decapod.control import Budget
+    from decapod.memory import AgendaStore, MemoryStore
+    from decapod.tools import ToolContext
+
+    clients = []
+
+    def build(handler=None, secrets=None, cycle_id="c1"):
+        paths = InstancePaths(tmp_path / "instance")
+        paths.ensure()
+        transport = httpx.MockTransport(handler or (lambda request: httpx.Response(404)))
+        client = httpx.AsyncClient(transport=transport)
+        clients.append(client)
+        return ToolContext(
+            paths=paths,
+            settings=settings,
+            charter=charter,
+            secrets=Secrets(secrets or {}),
+            db=db,
+            events=events,
+            agenda=AgendaStore(db, events),
+            memory=MemoryStore(db, settings.memory, events),
+            budget=Budget(db, settings.budget),
+            http=client,
+            cycle_id=cycle_id,
+        )
+
+    return build
