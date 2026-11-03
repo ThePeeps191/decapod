@@ -463,8 +463,8 @@ def test_plugin_tools(monkeypatch):
 
 
 @pytest.mark.skipif(
-    __import__("decapod.tools.sandbox", fromlist=["x"]).bwrap_path() is None,
-    reason="bubblewrap not installed",
+    not __import__("decapod.tools.sandbox", fromlist=["x"]).bwrap_works(),
+    reason="bubblewrap not installed or not usable (e.g. user namespaces disabled)",
 )
 async def test_bwrap_sandbox_isolation(tmp_path):
     root = tmp_path / "inst"
