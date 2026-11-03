@@ -15,6 +15,7 @@ class OpenAICompatibleProvider:
         *,
         timeout: float = 120.0,
         extra_headers: dict[str, str] | None = None,
+        http_client: Any | None = None,
     ) -> None:
         from openai import AsyncOpenAI
 
@@ -24,6 +25,7 @@ class OpenAICompatibleProvider:
             timeout=timeout,
             max_retries=0,  # retries are handled by the LLM service
             default_headers=extra_headers or None,
+            http_client=http_client,
         )
 
     async def complete(self, request: ProviderRequest) -> ProviderResponse:

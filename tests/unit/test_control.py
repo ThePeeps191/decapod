@@ -322,3 +322,14 @@ def test_unknown_command_rejected(db, events):
     assert db.scalar("SELECT status FROM control_commands") == "rejected"
     with pytest.raises(ValueError):
         issue_command(db, "explode")
+
+
+async def test_pause_is_not_overridden_by_scheduler_states(db, events):
+    ctl = Controller(db, events, poll_interval=0.01)
+    ctl.set_state(RunState.RUNNING)
+    ctl.pause("operator")
+    ctl.set_state(RunState.RUNNING, "cycle starting")
+    ctl.set_state(RunState.SLEEPING, "keeping momentum")
+    assert ctl.state is RunState.PAUSED
+    ctl.resume()
+    assert ctl.state is RunState.RUNNING

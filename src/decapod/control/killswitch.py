@@ -75,9 +75,15 @@ class Controller:
     def halted(self) -> bool:
         return self.state in HALTED_STATES
 
-    def set_state(self, state: RunState, reason: str = "") -> None:
+    def set_state(self, state: RunState, reason: str = "", *, force: bool = False) -> None:
         if self.state is RunState.KILLED and state is not RunState.KILLED:
             return  # kill is terminal
+        if (
+            self.state is RunState.PAUSED
+            and state in (RunState.RUNNING, RunState.SLEEPING)
+            and not force
+        ):
+            return  # only an explicit resume ends a pause
         if self.state in (RunState.STOPPING, RunState.STOPPED) and state in (
             RunState.RUNNING,
             RunState.SLEEPING,
@@ -106,7 +112,7 @@ class Controller:
         if self.state is not RunState.PAUSED:
             self.wake.set()
             return
-        self.set_state(RunState.RUNNING, reason)
+        self.set_state(RunState.RUNNING, reason, force=True)
         self._paused_before = None
         self.wake.set()
 

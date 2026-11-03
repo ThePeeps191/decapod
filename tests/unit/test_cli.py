@@ -112,3 +112,33 @@ def test_eval_command(home, capsys):
     assert "1/1 passed" in capsys.readouterr().out
     assert main(["eval", "unknown"]) == 1
     json.dumps({})
+
+
+def test_background_start_stop_kill(home, capsys):
+    from decapod.config import InstancePaths
+    from decapod.daemon import running_pid
+    from decapod.storage import Database
+
+    assert main(["init", "--yes", "--charter", "minimal"]) == 0
+    paths = InstancePaths(home)
+    assert main(["start", "--offline"]) == 0
+    pid = running_pid(paths.pidfile)
+    assert pid is not None
+    assert main(["start", "--offline"]) == 0  # idempotent
+    assert "Already running" in capsys.readouterr().out
+    assert main(["status"]) == 0
+    assert main(["pause", "--reason", "test"]) == 0
+    assert main(["resume"]) == 0
+    assert main(["stop", "--timeout", "60"]) == 0
+    assert running_pid(paths.pidfile) is None
+    db = Database(paths.db)
+    assert db.get_state("run_state") == "stopped"
+    db.close()
+
+    assert main(["start", "--offline"]) == 0
+    assert main(["kill"]) == 0
+    assert running_pid(paths.pidfile) is None
+    paths.stop_file.write_text("")
+    assert main(["start", "--offline"]) == 1
+    assert main(["start", "--offline", "--clear-stop"]) == 0
+    assert main(["kill"]) == 0

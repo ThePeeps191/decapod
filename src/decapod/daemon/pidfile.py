@@ -28,11 +28,24 @@ def pid_alive(pid: int) -> bool:
         kernel32.CloseHandle(handle)
         return code.value == 259  # STILL_ACTIVE
     try:
+        # If it is our own exited child, reap it so it does not linger as a zombie.
+        reaped, _ = os.waitpid(pid, os.WNOHANG)
+        if reaped == pid:
+            return False
+    except ChildProcessError:
+        pass
+    try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
     except PermissionError:
         return True
+    status = Path(f"/proc/{pid}/status")
+    if status.exists():  # Linux: a zombie is not alive
+        with contextlib.suppress(OSError):
+            for line in status.read_text().splitlines():
+                if line.startswith("State:"):
+                    return "Z" not in line.split(":", 1)[1].split()[0]
     return True
 
 
