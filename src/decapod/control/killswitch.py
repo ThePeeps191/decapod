@@ -55,12 +55,12 @@ class Controller:
         self.state = RunState.STARTING
         self.reason = ""
         self.wake = asyncio.Event()
-        self._kill_hooks: list[Callable[[], None]] = []
+        self._kill_hooks: list[Callable[[], object]] = []
         self._paused_before: RunState | None = None
 
     # ------------------------------------------------------------------ hooks
 
-    def on_kill(self, hook: Callable[[], None]) -> Callable[[], None]:
+    def on_kill(self, hook: Callable[[], object]) -> Callable[[], None]:
         self._kill_hooks.append(hook)
 
         def remove() -> None:

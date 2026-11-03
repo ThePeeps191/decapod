@@ -11,6 +11,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from decapod.config.providers import Route, Routing, resolve_routes
 from decapod.config.settings import LLMSettings
 from decapod.domain import (
     BudgetExceeded,
@@ -76,12 +77,14 @@ class LLM:
         provider: LLMProvider,
         *,
         gate: SpendGate | None = None,
+        routing: Routing | None = None,
         recorder: Any | None = None,  # decapod.storage.EventLog
         sleep: Sleep = asyncio.sleep,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.settings = settings
         self.provider = provider
+        self.routing = routing or resolve_routes(settings, None, placeholder=True)
         self.gate = gate
         self.recorder = recorder
         self._sleep = sleep
@@ -117,7 +120,7 @@ class LLM:
         chain = [tier, *[t for t in self.settings.fallbacks.get(tier, []) if t != tier]]
         last_error: Exception | None = None
         for current in chain:
-            if current not in self.settings.tiers:
+            if current not in self.routing.routes:
                 continue
             try:
                 completion = await self._call_tier(
@@ -139,6 +142,8 @@ class LLM:
                 continue
             self.breaker.success()
             return completion
+        if last_error is None:
+            raise LLMError(f"no model is configured for tier {tier.value} (or its fallbacks)")
         self.breaker.failure()
         raise LLMError(f"all tiers failed for {purpose}: {last_error}")
 
@@ -197,12 +202,15 @@ class LLM:
             f"{purpose}: no valid {output.__name__} after {attempts} attempts: {last_error}"
         )
 
+    def route(self, tier: Tier) -> Route | None:
+        return self.routing.routes.get(tier)
+
     async def embed(self, texts: list[str]) -> list[list[float]] | None:
-        model = self.settings.embeddings_model
-        if not model or not texts:
+        route = self.routing.embeddings
+        if route is None or not texts:
             return None
         try:
-            return await self.provider.embed(model, texts)
+            return await self.provider.embed(route.model, texts, provider=route.provider)
         except ProviderError as exc:
             log.warning("embedding failed, falling back to keyword search: %s", exc)
             return None
@@ -223,7 +231,8 @@ class LLM:
         json_schema: dict[str, Any] | None,
         schema_name: str | None,
     ) -> Completion:
-        model = self.settings.model_for(tier)
+        route = self.routing.routes[tier]
+        model = route.model
         prompt_tokens = sum(estimate_tokens(m.content) for m in messages)
         if self.gate is not None:
             self.gate.authorize(Cost(tokens_in=prompt_tokens, llm_requests=1), cycle_id)
@@ -235,6 +244,7 @@ class LLM:
             attempts += 1
             request = ProviderRequest(
                 model=model,
+                provider=route.provider,
                 tier=tier,
                 messages=messages,
                 temperature=temperature,
@@ -298,7 +308,7 @@ class LLM:
         tokens_out = response.tokens_out
         if tokens_out is None:
             tokens_out = estimate_tokens(response.content) + estimate_tokens(response.reasoning)
-        price = self.settings.price_for(model)
+        price = self.settings.price_for(request.provider, model)
         usd = (tokens_in * price.input + tokens_out * price.output) / 1_000_000
         return Cost(usd=usd, tokens_in=tokens_in, tokens_out=tokens_out, llm_requests=1)
 
@@ -328,7 +338,7 @@ class LLM:
                 cycle_id,
                 request.purpose,
                 request.tier.value,
-                request.model,
+                f"{request.provider}:{request.model}",
                 json_dumps([m.model_dump() for m in request.messages]),
                 response.content if response else None,
                 response.reasoning if response else None,
@@ -349,6 +359,7 @@ class LLM:
             {
                 "purpose": request.purpose,
                 "tier": request.tier.value,
+                "provider": request.provider,
                 "model": request.model,
                 "tokens_in": cost.tokens_in,
                 "tokens_out": cost.tokens_out,

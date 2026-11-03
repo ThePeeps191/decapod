@@ -35,7 +35,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Strategist",
         chamber="strategy",
         kind="proposer",
-        tier=Tier.FAST,
+        tier=Tier.FLASH,
         temperature=0.8,
         brief=(
             "You decide WHAT is worth doing. Keep the agenda aligned with the charter: "
@@ -51,7 +51,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Planner",
         chamber="strategy",
         kind="proposer",
-        tier=Tier.FAST,
+        tier=Tier.FLASH,
         temperature=0.5,
         brief=(
             "You turn goals into executable plans and keep them moving. If the focused goal "
@@ -67,7 +67,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Opportunist",
         chamber="strategy",
         kind="proposer",
-        tier=Tier.FAST,
+        tier=Tier.FLASH,
         temperature=0.9,
         brief=(
             "You watch new percepts (messages, feeds, results, operator notes) for "
@@ -83,7 +83,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Operator",
         chamber="operations",
         kind="proposer",
-        tier=Tier.FAST,
+        tier=Tier.FLASH,
         temperature=0.5,
         brief=(
             "You are the hands-on domain specialist. Propose the concrete tool call, with "
@@ -98,7 +98,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Researcher",
         chamber="operations",
         kind="proposer",
-        tier=Tier.FAST,
+        tier=Tier.FLASH,
         temperature=0.7,
         brief=(
             "You reduce uncertainty. When the caucus lacks information to act well, "
@@ -113,7 +113,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Economist",
         chamber="operations",
         kind="critic",
-        tier=Tier.FAST,
+        tier=Tier.FLASH,
         temperature=0.3,
         brief=(
             "You judge cost against benefit given the remaining budget. Penalize expensive, "
@@ -129,7 +129,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Critic",
         chamber="oversight",
         kind="critic",
-        tier=Tier.FAST,
+        tier=Tier.FLASH,
         temperature=0.3,
         brief=(
             "You red-team proposals: find flaws, hallucinated assumptions, wrong or "
@@ -144,7 +144,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Risk Officer",
         chamber="oversight",
         kind="critic",
-        tier=Tier.STANDARD,
+        tier=Tier.PRO,
         temperature=0.2,
         brief=(
             "You check every proposal against the charter (mission, values, prohibitions, "
@@ -160,7 +160,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Historian",
         chamber="oversight",
         kind="critic",
-        tier=Tier.FAST,
+        tier=Tier.FLASH,
         temperature=0.2,
         brief=(
             "You remember. Check proposals against past episodes and lessons: have we "
@@ -176,7 +176,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Strategy Manager",
         chamber="strategy",
         kind="manager",
-        tier=Tier.STANDARD,
+        tier=Tier.PRO,
         temperature=0.3,
         brief="You summarize the strategy chamber's view for the executive.",
         sees=("agenda", "percepts"),
@@ -186,7 +186,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Operations Manager",
         chamber="operations",
         kind="manager",
-        tier=Tier.STANDARD,
+        tier=Tier.PRO,
         temperature=0.3,
         brief="You summarize the operations chamber's view for the executive.",
         sees=("agenda", "budget"),
@@ -196,7 +196,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Oversight Manager",
         chamber="oversight",
         kind="manager",
-        tier=Tier.STANDARD,
+        tier=Tier.PRO,
         temperature=0.3,
         brief="You summarize the oversight chamber's view for the executive.",
         sees=("agenda", "recent"),
@@ -207,7 +207,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Executive",
         chamber="none",
         kind="executive",
-        tier=Tier.STRONG,
+        tier=Tier.PRO,
         temperature=0.3,
         brief=(
             "You are the single decision-maker. You read the distilled debate and commit "
@@ -221,7 +221,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Reflector",
         chamber="none",
         kind="reflector",
-        tier=Tier.STANDARD,
+        tier=Tier.PRO,
         temperature=0.3,
         brief="You turn what just happened into memory, progress updates and lessons.",
         sees=(),
@@ -231,7 +231,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Triage",
         chamber="none",
         kind="triage",
-        tier=Tier.FREE,
+        tier=Tier.FLASH,
         temperature=0.1,
         brief="You decide how much deliberation the current situation deserves.",
         sees=("agenda", "percepts", "recent"),
@@ -241,7 +241,7 @@ ROSTER: tuple[AgentSpec, ...] = (
         title="Archivist",
         chamber="none",
         kind="compactor",
-        tier=Tier.FREE,
+        tier=Tier.FLASH,
         temperature=0.2,
         brief="You compress old episodic memories into faithful digests.",
         sees=(),
@@ -262,10 +262,10 @@ LEVEL_CRITICS: dict[Level, tuple[str, ...]] = {
     Level.L3: ("economist", "critic", "risk_officer", "historian"),
 }
 EXECUTIVE_TIER: dict[Level, Tier] = {
-    Level.L0: Tier.FAST,
-    Level.L1: Tier.STRONG,
-    Level.L2: Tier.STRONG,
-    Level.L3: Tier.FRONTIER,
+    Level.L0: Tier.FLASH,
+    Level.L1: Tier.PRO,
+    Level.L2: Tier.PRO,
+    Level.L3: Tier.MAX,
 }
 
 

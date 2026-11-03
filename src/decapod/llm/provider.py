@@ -1,4 +1,4 @@
-"""OpenAI-compatible provider (Hack Club AI, OpenRouter, DeepSeek, vLLM, Ollama, …)."""
+"""OpenAI-compatible providers (Anthropic, OpenAI, OpenRouter, DeepSeek, Gemini, Ollama, …)."""
 
 from __future__ import annotations
 
@@ -90,7 +90,9 @@ class OpenAICompatibleProvider:
             model=response.model,
         )
 
-    async def embed(self, model: str, texts: list[str]) -> list[list[float]]:
+    async def embed(
+        self, model: str, texts: list[str], provider: str = "default"
+    ) -> list[list[float]]:
         import openai
 
         try:
@@ -114,3 +116,49 @@ def _reasoning_of(message: Any) -> str:
         if isinstance(value, str) and value:
             return value
     return ""
+
+
+class MultiProvider:
+    """Routes each request to the endpoint of its provider (one client per provider)."""
+
+    def __init__(self, configs: dict[str, Any], secrets: Any, *, timeout: float = 120.0) -> None:
+        self._configs = configs
+        self._secrets = secrets
+        self._timeout = timeout
+        self._clients: dict[str, OpenAICompatibleProvider] = {}
+
+    def _client(self, name: str) -> OpenAICompatibleProvider:
+        client = self._clients.get(name)
+        if client is not None:
+            return client
+        config = self._configs.get(name)
+        if config is None:
+            raise ProviderError(f"unknown provider {name!r}", retryable=False, status=404)
+        key = self._secrets.get(config.api_key_env) if config.api_key_env else None
+        if config.requires_key and not key:
+            raise ProviderError(
+                f"provider {name!r} has no API key ({config.api_key_env} is not set)",
+                retryable=False,
+                status=401,
+            )
+        client = OpenAICompatibleProvider(
+            config.base_url,
+            key or "not-needed",
+            timeout=self._timeout,
+            extra_headers=config.extra_headers,
+        )
+        self._clients[name] = client
+        return client
+
+    async def complete(self, request: ProviderRequest) -> ProviderResponse:
+        return await self._client(request.provider).complete(request)
+
+    async def embed(
+        self, model: str, texts: list[str], provider: str = "default"
+    ) -> list[list[float]]:
+        return await self._client(provider).embed(model, texts)
+
+    async def close(self) -> None:
+        for client in self._clients.values():
+            await client.close()
+        self._clients.clear()

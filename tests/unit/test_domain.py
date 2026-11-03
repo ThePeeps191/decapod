@@ -15,12 +15,12 @@ from decapod.domain import (
 
 
 def test_tier_parse_and_aliases():
-    assert Tier.parse("fast") is Tier.FAST
-    assert Tier.parse("FLASH") is Tier.FAST
-    assert Tier.parse("pro") is Tier.STANDARD
-    assert Tier.parse("MAX") is Tier.STRONG
-    assert Tier.parse("Mythos") is Tier.FRONTIER
-    assert Tier.parse("multimodal") is Tier.VISION
+    assert Tier.parse("fast") is Tier.FLASH
+    assert Tier.parse("FLASH") is Tier.FLASH
+    assert Tier.parse("pro") is Tier.PRO
+    assert Tier.parse("smart") is Tier.PRO
+    assert Tier.parse("max") is Tier.MAX
+    assert Tier.parse("frontier") is Tier.MAX
     with pytest.raises(ValueError):
         Tier.parse("ultra")
 

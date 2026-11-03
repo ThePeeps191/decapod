@@ -34,6 +34,7 @@ class ProviderRequest(BaseModel):
     model: str
     tier: Tier
     messages: list[Message]
+    provider: str = "default"
     temperature: float = 0.7
     max_tokens: int | None = None
     json_mode: Literal["schema", "object", "none"] = "none"
@@ -82,7 +83,9 @@ class ProviderError(Exception):
 class LLMProvider(Protocol):
     async def complete(self, request: ProviderRequest) -> ProviderResponse: ...
 
-    async def embed(self, model: str, texts: list[str]) -> list[list[float]]: ...
+    async def embed(
+        self, model: str, texts: list[str], provider: str = "default"
+    ) -> list[list[float]]: ...
 
     async def close(self) -> None: ...
 

@@ -85,8 +85,12 @@ class PolicyEngine:
         cycle_id: str | None,
         run_state: RunState = RunState.RUNNING,
         preapproved: bool = False,
+        count: bool = True,
     ) -> Verdict:
+        """Review an action. ``count=False`` is a dry run that does not touch the denial streak."""
         verdict = self._review(action, tool, cycle_id, run_state, preapproved)
+        if not count:
+            return verdict
         if verdict.outcome == "deny" and not verdict.transient:
             self.consecutive_denials += 1
         elif verdict.outcome == "allow":

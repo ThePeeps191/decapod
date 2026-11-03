@@ -41,15 +41,15 @@ MSGS = [Message.user("hi")]
 
 async def test_chat_basic():
     llm = make_llm(ScriptedProvider({"t": "hello"}))
-    out = await llm.chat(MSGS, tier=Tier.FAST, purpose="t")
-    assert out.content == "hello" and out.tier is Tier.FAST
+    out = await llm.chat(MSGS, tier=Tier.FLASH, purpose="t")
+    assert out.content == "hello" and out.tier is Tier.FLASH
     assert out.cost.llm_requests == 1
 
 
 async def test_structured_with_prose_and_repair():
     provider = ScriptedProvider({"s": ["not json at all", 'Sure: {"value": 7}']})
     llm = make_llm(provider)
-    out = await llm.structured(MSGS, Answer, tier=Tier.FAST, purpose="s")
+    out = await llm.structured(MSGS, Answer, tier=Tier.FLASH, purpose="s")
     assert out.value == 7
     assert len(provider.calls) == 2
     assert "not valid" in provider.calls[1].messages[-1].content
@@ -59,29 +59,29 @@ async def test_structured_with_prose_and_repair():
 async def test_structured_gives_up():
     llm = make_llm(ScriptedProvider({"s": '{"wrong": true}'}), repair_attempts=1)
     with pytest.raises(StructuredOutputError):
-        await llm.structured(MSGS, Answer, tier=Tier.FAST, purpose="s")
+        await llm.structured(MSGS, Answer, tier=Tier.FLASH, purpose="s")
 
 
 async def test_retry_then_success():
     provider = ScriptedProvider({"r": [ProviderError("503", retryable=True), "ok"]})
-    out = await make_llm(provider).chat(MSGS, tier=Tier.FAST, purpose="r")
+    out = await make_llm(provider).chat(MSGS, tier=Tier.FLASH, purpose="r")
     assert out.content == "ok" and out.attempts == 2
 
 
 async def test_fallback_to_next_tier():
     def respond(request):
-        if request.tier is Tier.STRONG:
+        if request.tier is Tier.MAX:
             raise ProviderError("down", retryable=False, status=500)
         return f"from {request.tier.value}"
 
-    out = await make_llm(ScriptedProvider({"f": respond})).chat(MSGS, tier=Tier.STRONG, purpose="f")
-    assert out.content == "from STANDARD" and out.tier is Tier.STANDARD
+    out = await make_llm(ScriptedProvider({"f": respond})).chat(MSGS, tier=Tier.MAX, purpose="f")
+    assert out.content == "from PRO" and out.tier is Tier.PRO
 
 
 async def test_auth_error_does_not_fall_back():
     provider = ScriptedProvider({"a": ProviderError("401", retryable=False, status=401)})
     with pytest.raises(LLMError, match="401"):
-        await make_llm(provider).chat(MSGS, tier=Tier.STRONG, purpose="a")
+        await make_llm(provider).chat(MSGS, tier=Tier.PRO, purpose="a")
     assert len(provider.calls) == 1
 
 
@@ -94,7 +94,7 @@ async def test_bad_response_format_disables_json_mode():
         return '{"value": 1}'
 
     llm = make_llm(ScriptedProvider({"j": respond}))
-    out = await llm.structured(MSGS, Answer, tier=Tier.FAST, purpose="j")
+    out = await llm.structured(MSGS, Answer, tier=Tier.FLASH, purpose="j")
     assert out.value == 1
 
 
@@ -104,12 +104,12 @@ async def test_circuit_breaker_opens():
     llm = LLM(LLMSettings(circuit_breaker_failures=2), provider, sleep=no_sleep, clock=lambda: t[0])
     for _ in range(2):
         with pytest.raises(LLMError):
-            await llm.chat(MSGS, tier=Tier.FREE, purpose="x")
+            await llm.chat(MSGS, tier=Tier.FLASH, purpose="x")
     with pytest.raises(ProviderUnavailable):
-        await llm.chat(MSGS, tier=Tier.FREE, purpose="x")
+        await llm.chat(MSGS, tier=Tier.FLASH, purpose="x")
     t[0] += 10_000  # cooldown elapsed -> half-open probe allowed
     provider.add("x", "recovered")
-    assert (await llm.chat(MSGS, tier=Tier.FREE, purpose="x")).content == "recovered"
+    assert (await llm.chat(MSGS, tier=Tier.FLASH, purpose="x")).content == "recovered"
     assert not llm.breaker.is_open
 
 
@@ -131,9 +131,9 @@ async def test_cost_and_recording(tmp_path):
     provider = ScriptedProvider(
         {"c": ProviderResponse(content="x", tokens_in=1_000_000, tokens_out=500_000)}
     )
-    settings = LLMSettings(pricing={"deepseek/deepseek-v4-flash": PriceSettings(input=1, output=2)})
+    settings = LLMSettings(pricing={"default:flash": PriceSettings(input=1, output=2)})
     llm = LLM(settings, provider, gate=gate, recorder=log, sleep=no_sleep)
-    out = await llm.chat(MSGS, tier=Tier.FAST, purpose="c", cycle_id="c1")
+    out = await llm.chat(MSGS, tier=Tier.FLASH, purpose="c", cycle_id="c1")
     assert out.cost.usd == pytest.approx(2.0)
     assert gate.recorded[0].usd == pytest.approx(2.0)
     assert db.scalar("SELECT COUNT(*) FROM llm_calls WHERE cycle_id='c1'") == 1
@@ -152,18 +152,18 @@ async def test_budget_preauthorization_blocks_call():
     provider = ScriptedProvider({"b": "x"})
     llm = LLM(LLMSettings(), provider, gate=Gate(), sleep=no_sleep)
     with pytest.raises(BudgetExceeded):
-        await llm.chat(MSGS, tier=Tier.FAST, purpose="b")
+        await llm.chat(MSGS, tier=Tier.FLASH, purpose="b")
     assert provider.calls == []
 
 
 async def test_replay_provider():
     replay = ReplayProvider([("a", "one"), ("a", "two"), ("b", "bee")])
     llm = make_llm(replay)
-    assert (await llm.chat(MSGS, tier=Tier.FAST, purpose="a")).content == "one"
-    assert (await llm.chat(MSGS, tier=Tier.FAST, purpose="b")).content == "bee"
-    assert (await llm.chat(MSGS, tier=Tier.FAST, purpose="a")).content == "two"
+    assert (await llm.chat(MSGS, tier=Tier.FLASH, purpose="a")).content == "one"
+    assert (await llm.chat(MSGS, tier=Tier.FLASH, purpose="b")).content == "bee"
+    assert (await llm.chat(MSGS, tier=Tier.FLASH, purpose="a")).content == "two"
     with pytest.raises(LLMError):
-        await llm.chat(MSGS, tier=Tier.FREE, purpose="a")
+        await llm.chat(MSGS, tier=Tier.FLASH, purpose="a")
     assert "a" in replay.misses
 
 

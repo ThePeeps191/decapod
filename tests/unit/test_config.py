@@ -25,7 +25,7 @@ patterns = ["(?i)password"]
 
 def test_defaults_are_valid():
     settings = load_settings(None, environ={})
-    assert settings.llm.model_for(Tier.FAST) == "deepseek/deepseek-v4-flash"
+    assert settings.llm.tiers == {} and settings.llm.default_provider is None
     assert settings.policy.mode_for(RiskTier.EXTERNAL_WRITE) == "approval"
     assert settings.policy.mode_for(RiskTier.READ) == "auto"
     assert settings.schedule.min_interval == timedelta(seconds=30)
@@ -38,7 +38,7 @@ def test_load_toml_with_durations_and_aliases(tmp_path):
 [llm]
 timeout = "45s"
 [llm.tiers]
-FLASH = "my/fast-model"
+FLASH = "openrouter:my/fast-model"
 [schedule]
 min_interval = "1m"
 [policy.modes]
@@ -51,7 +51,7 @@ tier2 = "L2"
         encoding="utf-8",
     )
     s = load_settings(path, environ={})
-    assert s.llm.tiers[Tier.FAST] == "my/fast-model"
+    assert s.llm.tiers[Tier.FLASH] == "openrouter:my/fast-model"
     assert s.llm.timeout == timedelta(seconds=45)
     assert s.schedule.min_interval == timedelta(minutes=1)
     assert s.policy.mode_for(RiskTier.EXTERNAL_WRITE) == "auto"
@@ -61,13 +61,13 @@ tier2 = "L2"
 
 def test_env_overrides():
     env = {
-        "DECAPOD_LLM__BASE_URL": "http://localhost:8000/v1",
+        "DECAPOD_LLM__DEFAULT_PROVIDER": "ollama",
         "DECAPOD_BUDGET__DAILY__USD": "1.5",
         "DECAPOD_HOME": "/ignored",
         "OTHER": "x",
     }
     assert env_overrides(env) == {
-        "llm": {"base_url": "http://localhost:8000/v1"},
+        "llm": {"default_provider": "ollama"},
         "budget": {"daily": {"usd": 1.5}},
     }
     s = load_settings(None, environ=env)

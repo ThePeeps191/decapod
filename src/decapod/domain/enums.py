@@ -6,18 +6,20 @@ from enum import IntEnum, StrEnum
 
 
 class Tier(StrEnum):
-    """Model capability tiers. Concrete model names are mapped in config."""
+    """Model tiers. Each maps to a concrete model in config (or a provider preset).
 
-    FREE = "FREE"
-    FAST = "FAST"
-    STANDARD = "STANDARD"
-    STRONG = "STRONG"
-    FRONTIER = "FRONTIER"
-    VISION = "VISION"
+    * FLASH – fast and cheap: specialists, triage, memory compaction.
+    * PRO   – capable: managers, reflection, the executive's normal decisions.
+    * MAX   – the strongest model you have: the executive on grave (L3) decisions.
+    """
+
+    FLASH = "FLASH"
+    PRO = "PRO"
+    MAX = "MAX"
 
     @classmethod
     def parse(cls, value: str | Tier) -> Tier:
-        """Parse a tier name, accepting the legacy names from the original client."""
+        """Parse a tier name (case-insensitive), accepting common synonyms."""
         if isinstance(value, Tier):
             return value
         key = str(value).strip().upper()
@@ -29,13 +31,16 @@ class Tier(StrEnum):
             raise ValueError(f"unknown model tier {value!r} (valid: {valid})") from None
 
 
-#: Legacy tier names from the original ``llm.Client`` (FLASH/PRO/MAX/MYTHOS/MULTIMODAL).
+#: Synonyms accepted in config files.
 TIER_ALIASES: dict[str, str] = {
-    "FLASH": "FAST",
-    "PRO": "STANDARD",
-    "MAX": "STRONG",
-    "MYTHOS": "FRONTIER",
-    "MULTIMODAL": "VISION",
+    "FAST": "FLASH",
+    "CHEAP": "FLASH",
+    "SMALL": "FLASH",
+    "STANDARD": "PRO",
+    "SMART": "PRO",
+    "STRONG": "MAX",
+    "BEST": "MAX",
+    "FRONTIER": "MAX",
 }
 
 

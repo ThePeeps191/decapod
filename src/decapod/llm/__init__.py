@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from decapod.config.providers import Routing, resolve_routes
 from decapod.config.secrets import Secrets
 from decapod.config.settings import LLMSettings
 from decapod.llm.fake import ReplayProvider, ScriptedProvider, hash_embedding
-from decapod.llm.provider import OpenAICompatibleProvider
+from decapod.llm.provider import MultiProvider, OpenAICompatibleProvider
 from decapod.llm.service import LLM, CircuitBreaker
 from decapod.llm.types import (
     Completion,
@@ -18,13 +19,11 @@ from decapod.llm.types import (
 )
 
 
-def build_provider(settings: LLMSettings, secrets: Secrets) -> OpenAICompatibleProvider:
-    return OpenAICompatibleProvider(
-        settings.base_url,
-        secrets.get(settings.api_key_env),
-        timeout=settings.timeout.total_seconds(),
-        extra_headers=settings.extra_headers,
-    )
+def build_provider(
+    settings: LLMSettings, secrets: Secrets, routing: Routing | None = None
+) -> MultiProvider:
+    routing = routing or resolve_routes(settings, secrets)
+    return MultiProvider(routing.providers, secrets, timeout=settings.timeout.total_seconds())
 
 
 __all__ = [
@@ -33,6 +32,7 @@ __all__ = [
     "Completion",
     "LLMProvider",
     "Message",
+    "MultiProvider",
     "OpenAICompatibleProvider",
     "ProviderError",
     "ProviderRequest",

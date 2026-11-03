@@ -37,27 +37,39 @@ class PriceSettings(_Section):
     output: float = 0.0  # USD per million output tokens
 
 
+class ProviderSettings(_Section):
+    """An OpenAI-compatible endpoint. Built-in presets fill in anything left unset."""
+
+    base_url: str | None = None
+    api_key_env: str | None = None
+    #: Set for local servers (Ollama, LM Studio, vLLM) that need no key.
+    requires_key: bool | None = None
+    extra_headers: dict[str, str] = Field(default_factory=dict)
+    #: Default model per tier for this provider (overrides the preset's defaults).
+    models: dict[Tier, str] = Field(default_factory=dict)
+
+    @field_validator("models", mode="before")
+    @classmethod
+    def _parse_models(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {Tier.parse(k): v for k, v in value.items()}
+        return value
+
+
 class LLMSettings(_Section):
-    base_url: str = "https://ai.hackclub.com/proxy/v1"
-    api_key_env: str = "HACKCLUB_AI_API_KEY"
-    tiers: dict[Tier, str] = Field(
-        default_factory=lambda: {
-            Tier.FREE: "tencent/hy3:free",
-            Tier.FAST: "deepseek/deepseek-v4-flash",
-            Tier.STANDARD: "deepseek/deepseek-v4-pro",
-            Tier.STRONG: "z-ai/glm-5.2",
-            Tier.FRONTIER: "anthropic/claude-fable-5",
-            Tier.VISION: "xiaomi/mimo-v2.5",
-        }
-    )
+    #: Provider used for tiers that do not name one. None = the first provider (in preset
+    #: order) whose API key is present in the environment / .env files.
+    default_provider: str | None = None
+    #: Extra providers or overrides of the built-in presets, keyed by name.
+    providers: dict[str, ProviderSettings] = Field(default_factory=dict)
+    #: Model per tier: "provider:model" or just "model" (uses the default provider).
+    #: Tiers left out use the default provider's preset model for that tier.
+    tiers: dict[Tier, str] = Field(default_factory=dict)
     #: If a tier fails after retries, try these tiers next (in order).
     fallbacks: dict[Tier, list[Tier]] = Field(
         default_factory=lambda: {
-            Tier.FRONTIER: [Tier.STRONG],
-            Tier.STRONG: [Tier.STANDARD],
-            Tier.STANDARD: [Tier.FAST],
-            Tier.FAST: [Tier.FREE],
-            Tier.VISION: [Tier.STRONG],
+            Tier.MAX: [Tier.PRO],
+            Tier.PRO: [Tier.FLASH],
         }
     )
     timeout: timedelta = timedelta(seconds=120)
@@ -69,10 +81,11 @@ class LLMSettings(_Section):
     repair_attempts: int = Field(default=2, ge=0, le=5)
     circuit_breaker_failures: int = Field(default=5, ge=1)
     circuit_breaker_cooldown: timedelta = timedelta(minutes=5)
+    #: USD per million tokens, keyed by "provider:model" or "model".
     pricing: dict[str, PriceSettings] = Field(default_factory=dict)
     default_price: PriceSettings = Field(default_factory=PriceSettings)
+    #: "provider:model" or "model" for embeddings; None = keyword search only.
     embeddings_model: str | None = None
-    extra_headers: dict[str, str] = Field(default_factory=dict)
 
     _v_timeout = field_validator(
         "timeout", "min_request_interval", "circuit_breaker_cooldown", mode="before"
@@ -92,14 +105,10 @@ class LLMSettings(_Section):
             return {Tier.parse(k): [Tier.parse(t) for t in v] for k, v in value.items()}
         return value
 
-    def model_for(self, tier: Tier) -> str:
-        try:
-            return self.tiers[tier]
-        except KeyError:
-            raise ConfigError(f"no model configured for tier {tier.value}") from None
-
-    def price_for(self, model: str) -> PriceSettings:
-        return self.pricing.get(model, self.default_price)
+    def price_for(self, provider: str, model: str) -> PriceSettings:
+        return self.pricing.get(f"{provider}:{model}") or self.pricing.get(
+            model, self.default_price
+        )
 
 
 class ScheduleSettings(_Section):

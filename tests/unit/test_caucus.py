@@ -291,7 +291,7 @@ async def test_external_write_escalates_to_l3(charter, events):
     assert decision.level is Level.L3
     assert decision.is_wait and decision.wait_minutes == 30 and decision.wake_on == ["inbox"]
     decide_calls = [c for c in provider.calls if c.purpose == "caucus.decide"]
-    assert decide_calls[-1].tier is Tier.FRONTIER
+    assert decide_calls[-1].tier is Tier.MAX
     assert "caucus.critique2.risk_officer" in provider.purposes()
     assert "caucus.escalate" in [e.kind for e in events.recent(80)]
 
@@ -344,8 +344,8 @@ def test_roster_settings():
         )
     )
     assert [s.role for s in roster.proposers(Level.L1)] == ["planner"]
-    assert roster.get("critic").tier is Tier.STANDARD and roster.get("critic").weight == 2
-    assert roster.executive_tier(Level.L3) is Tier.FRONTIER
+    assert roster.get("critic").tier is Tier.PRO and roster.get("critic").weight == 2
+    assert roster.executive_tier(Level.L3) is Tier.MAX
     assert len(roster.managers()) == 3
 
 

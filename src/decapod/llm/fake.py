@@ -76,7 +76,9 @@ class ScriptedProvider:
             f"no scripted response for purpose {request.purpose!r}", retryable=False
         )
 
-    async def embed(self, model: str, texts: list[str]) -> list[list[float]]:
+    async def embed(
+        self, model: str, texts: list[str], provider: str = "default"
+    ) -> list[list[float]]:
         return [hash_embedding(t) for t in texts]
 
     async def close(self) -> None:
@@ -107,7 +109,9 @@ class ReplayProvider:
         self._cursor[request.purpose] += 1
         return ProviderResponse(content=responses[index], tokens_in=0, tokens_out=0)
 
-    async def embed(self, model: str, texts: list[str]) -> list[list[float]]:
+    async def embed(
+        self, model: str, texts: list[str], provider: str = "default"
+    ) -> list[list[float]]:
         return [hash_embedding(t) for t in texts]
 
     async def close(self) -> None:
