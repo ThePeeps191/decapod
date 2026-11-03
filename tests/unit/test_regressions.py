@@ -193,3 +193,18 @@ async def test_mcp_duplicate_names_are_suffixed(tmp_path):
 
 def test_tool_result_unused():
     assert ToolResult.success("x").ok
+
+
+async def test_duplicate_plugin_tool_does_not_break_startup(tmp_path):
+    from decapod.evals.brain import scripted_brain
+    from decapod.runtime import Instance
+    from decapod.tools.builtin.internal import ClockNow
+    from tests.helpers import make_config
+
+    instance = Instance(
+        make_config(tmp_path / "i"), provider=scripted_brain(), extra_tools=[ClockNow()]
+    )
+    await instance.start()
+    assert instance.registry.get("clock.now") is not None
+    assert "clock.now (duplicate)" in instance.registry.unavailable
+    await instance.close()

@@ -120,7 +120,11 @@ class Instance:
                     actor="tools",
                 )
         for tool in tools:
-            self.registry.register(tool)
+            try:
+                self.registry.register(tool)
+            except ValueError as exc:  # a plugin/MCP name colliding with an existing tool
+                self.registry.unavailable[f"{tool.name} (duplicate)"] = str(exc)
+                self.events.append("tools.duplicate", str(exc), {"tool": tool.name}, actor="tools")
         self.controller.on_kill(self.procs.kill_all)
         self.controller.on_kill(self.mcp.kill_all)
         self.recover()
