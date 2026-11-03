@@ -161,13 +161,20 @@ def test_secret_variants_cover_escaping():
 
 
 def test_filenames_cannot_inject_html(tmp_path):
+    import sys
+
     drive = tmp_path / "drive"
-    write_note(drive / "published", 'x"><img src=x onerror=alert(1)>.md', "Evil", "body")
+    if sys.platform == "win32":  # Windows forbids " < > in filenames; still hostile here
+        name, expected = "x' onmouseover=alert(1) & y.md", "x-onmouseover-alert-1-y"
+    else:
+        name, expected = 'x"><img src=x onerror=alert(1)>.md', "x-img-src-x-onerror-alert-1"
+    write_note(drive / "published", name, "Evil", "body")
     result = build_site(drive, title="T", description="d", author="a")
     index = (drive / "site" / "index.html").read_text(encoding="utf-8")
-    assert "onerror=" not in index and "<img" not in index  # only escaped or slug text
-    assert result.notes[0].slug == "x-img-src-x-onerror-alert-1"
-    assert (drive / "site" / "posts" / f"{result.notes[0].slug}.html").exists()
+    for needle in ("onerror=", "onmouseover=", "<img"):
+        assert needle not in index  # only escaped text or slug text remains
+    assert result.notes[0].slug == expected
+    assert (drive / "site" / "posts" / f"{expected}.html").exists()
 
 
 async def test_drive_tools_cannot_write_the_site(make_ctx, settings):
