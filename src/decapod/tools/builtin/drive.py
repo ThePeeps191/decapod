@@ -14,7 +14,7 @@ from decapod.domain import RiskTier, SideEffect, ToolResult
 from decapod.tools.base import Tool, ToolArgs, ToolContext
 from decapod.util.text import truncate
 
-RESERVED = {".trash", ".sandbox"}
+RESERVED = {".trash", ".sandbox", ".site-build", ".site-old"}
 
 
 class DriveError(ValueError):
@@ -218,7 +218,16 @@ class NotesPublish(Tool):
         lines.insert(2 if len(lines) >= 2 else len(lines), entry)
         index.write_text("\n".join(lines) + "\n", encoding="utf-8")
         rel = path.relative_to(ctx.paths.drive).as_posix()
-        return ToolResult.success(f"published {rel}", {"path": rel})
+        site_note = ""
+        if ctx.settings.tools.site.build:
+            from decapod.tools.builtin.site import rebuild
+
+            try:
+                result = rebuild(ctx)
+                site_note = f"; website rebuilt ({len(result.notes)} notes in drive/site/)"
+            except Exception as exc:  # the note is published even if the site build fails
+                site_note = f"; website rebuild failed: {exc}"
+        return ToolResult.success(f"published {rel}{site_note}", {"path": rel})
 
 
 class ReadPublishedArgs(ToolArgs):

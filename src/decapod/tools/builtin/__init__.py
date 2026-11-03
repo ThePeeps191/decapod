@@ -8,6 +8,7 @@ from decapod.tools.builtin.drive import DRIVE_TOOLS
 from decapod.tools.builtin.email import EMAIL_TOOLS
 from decapod.tools.builtin.github import GITHUB_TOOLS
 from decapod.tools.builtin.internal import INTERNAL_TOOLS
+from decapod.tools.builtin.site import SITE_TOOLS
 from decapod.tools.builtin.web import WEB_TOOLS
 
 ALL_TOOLS: list[type[Tool]] = [
@@ -17,6 +18,7 @@ ALL_TOOLS: list[type[Tool]] = [
     *CODE_TOOLS,
     *EMAIL_TOOLS,
     *GITHUB_TOOLS,
+    *SITE_TOOLS,
 ]
 
 

@@ -300,6 +300,32 @@ class GitHubSettings(_Section):
     api_url: str = "https://api.github.com"
 
 
+class SiteSettings(_Section):
+    """The static website built from published notes (drive/site/)."""
+
+    build: bool = True
+    title: str | None = None  # default: the charter's name
+    description: str | None = None  # default: the charter's mission
+    #: Public URL of the deployed site, used for absolute links in the RSS feed.
+    base_url: str | None = None
+    #: GitHub repository that site.deploy pushes to, e.g. "me/me.github.io".
+    repo: str | None = None
+    branch: str = "gh-pages"
+    #: Folder inside the repository ("" = repository root).
+    path: str = ""
+
+
+class BrowserSettings(_Section):
+    """browser.read (needs the optional Playwright dependency)."""
+
+    enabled: bool = True
+    #: Chromium to launch; None = Playwright's bundled browser.
+    executable_path: str | None = None
+    timeout: timedelta = timedelta(seconds=30)
+
+    _v = field_validator("timeout", mode="before")(_duration)
+
+
 class MCPServerSettings(_Section):
     name: str
     command: list[str]
@@ -326,6 +352,8 @@ class ToolSettings(_Section):
     email: EmailSettings = Field(default_factory=EmailSettings)
     github: GitHubSettings = Field(default_factory=GitHubSettings)
     feeds: list[FeedSettings] = Field(default_factory=list)
+    site: SiteSettings = Field(default_factory=SiteSettings)
+    browser: BrowserSettings = Field(default_factory=BrowserSettings)
     drive_max_file_bytes: int = 5_000_000
 
 
