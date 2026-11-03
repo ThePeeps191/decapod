@@ -33,7 +33,10 @@ async def run(registry, ctx, tool, **args):
 
 
 def test_registry_availability_and_catalog(registry, charter):
-    assert "code.run" in registry.unavailable  # no bwrap / isolation=auto
+    from decapod.tools.sandbox import bwrap_path
+
+    # code.run is only offered when bubblewrap can isolate it (isolation = "auto")
+    assert ("code.run" in registry.unavailable) == (bwrap_path() is None)
     assert "email.send" in registry.unavailable
     catalog = registry.catalog(granted=lambda s: s in ("drive.read", "web.read"))
     assert "drive.read" in catalog and "drive.write(" not in catalog
@@ -453,3 +456,34 @@ def test_plugin_tools(monkeypatch):
     errors = []
     tools = plugins.plugin_tools(lambda name, exc: errors.append(name))
     assert len(tools) == 3 and errors == ["bad"]
+
+
+@pytest.mark.skipif(
+    __import__("decapod.tools.sandbox", fromlist=["x"]).bwrap_path() is None,
+    reason="bubblewrap not installed",
+)
+async def test_bwrap_sandbox_isolation(tmp_path):
+    root = tmp_path / "inst"
+    (root / "drive").mkdir(parents=True)
+    (root / ".env").write_text("SECRET=topsecret\n")
+    code = (
+        "import os, socket, pathlib\n"
+        "print('secret', os.environ.get('SECRET'))\n"
+        "print('dotenv', pathlib.Path('../../.env').exists())\n"
+        "try:\n    socket.create_connection(('1.1.1.1', 80), timeout=2); print('net open')\n"
+        "except OSError:\n    print('net blocked')\n"
+        "pathlib.Path('out.txt').write_text('hi')\n"
+        "try:\n    pathlib.Path('/etc/decapod-test').write_text('x'); print('etc writable')\n"
+        "except OSError:\n    print('etc blocked')\n"
+    )
+    result = await run_python(
+        code, workdir=root / "drive" / "sandbox", instance_root=root, timeout_s=20, isolation="auto"
+    )
+    assert result.isolation == "bwrap" and result.exit_code == 0, result.stderr
+    assert result.stdout.split("\n")[:4] == [
+        "secret None",
+        "dotenv False",
+        "net blocked",
+        "etc blocked",
+    ]
+    assert (root / "drive" / "sandbox" / "out.txt").read_text() == "hi"

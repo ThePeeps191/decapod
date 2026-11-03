@@ -120,8 +120,9 @@ async def run_python(
             Path(sys.base_prefix).resolve(),
             Path(os.path.realpath(sys.executable)).parent,
         }
+        hidden = (Path("/tmp").resolve(), home, root)
         for runtime in sorted(runtime_dirs):
-            if any(m == runtime or m in runtime.parents for m in (home, root)):
+            if any(m == runtime or m in runtime.parents for m in hidden):
                 masks += ["--ro-bind", str(runtime), str(runtime)]
         argv = [
             bwrap,
